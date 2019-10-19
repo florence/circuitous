@@ -3,12 +3,12 @@
 (provide unsat? verify-same)
 
 (require
-  "rosette/sem-sig.rkt"
-  "rosette/interp-sig.rkt"
-  "rosette/interp-unit.rkt"
-  "rosette/three-valued-unit.rkt"
-  "rosette/pos-neg-unit.rkt"
-  "rosette/shared.rkt"
+  "private/sem-sig.rkt"
+  "private/interp-sig.rkt"
+  "private/interp-unit.rkt"
+  "private/three-valued-unit.rkt"
+  "private/pos-neg-unit.rkt"
+  "private/shared.rkt"
   racket/unit)
 
 (define-values/invoke-unit/infer
