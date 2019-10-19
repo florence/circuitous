@@ -246,6 +246,12 @@
        (match-define (list n '= e) x)
        (list n (build-expression e)))
      P))
+  (define (build-state P inputs)
+    (append
+     (map
+      (lambda (w) (list (first w) initial-value))
+      P)
+     inputs))
 
   (define (build-expression e)
     (match e
@@ -266,12 +272,7 @@
       [x
        (lambda (w) (deref w x))]))
 
-  (define (build-state P inputs)
-    (append
-     (map
-      (lambda (w) (list (first w) '⊥))
-      P)
-     inputs))
+  
   (define (symbolic-inputs P #:exclude [exclude (list)])
     (map
      (lambda (x) (list x (symbolic-boolean x)))

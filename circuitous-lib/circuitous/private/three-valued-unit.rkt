@@ -10,8 +10,9 @@
 (define-unit three-valued@
   (import)
   (export sem^)
+  (define initial-value '⊥)
   (define (get-maximal-statespace x)
-    (add1 (expt 2 x)))
+    (expt 2 x))
   (define (initialize-to-false i)
     (map (lambda (x) (list x #f)) i))
   (define (f-or x y)

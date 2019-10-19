@@ -8,7 +8,8 @@
          rename**
          replace-p*
          classical
-         constructive)
+         constructive
+         convert-p)
 (require redex/reduction-semantics
          racket/list)
 (module+ test (require rackunit))

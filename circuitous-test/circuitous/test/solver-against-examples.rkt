@@ -1,12 +1,12 @@
 #lang rosette/safe
 (require
-  "sem-sig.rkt"
-  "interp-sig.rkt"
-  "interp-unit.rkt"
-  "three-valued-unit.rkt"
-  "pos-neg-unit.rkt"
-  "shared.rkt"
-  (only-in "../main.rkt" convert-P convert-p)
+  circuitous/private/sem-sig
+  circuitous/private/interp-sig
+  circuitous/private/interp-unit
+  circuitous/private/three-valued-unit
+  circuitous/private/pos-neg-unit
+  circuitous/private/shared
+  (only-in circuitous/private/redex convert-P convert-p)
   racket/unit
   rackunit
   rackunit/text-ui
@@ -224,6 +224,13 @@
    (verify-same
     (convert `((O = (not L)) (L = I)))
     (convert `((O = I)))))
+
+  (check-pred
+   list?
+   (verify-same
+    (convert `((z = (and x a))
+               (a = (or x a))))
+    (convert `((z = x)))))
     
   (test-case "pinning tests"
     (define p1
@@ -262,6 +269,15 @@
     #:register-pairs2 (list)
     (convert `((O = (not L)) (L = I)))
     (convert `((O = I)))))
+
+  (check-pred
+   list?
+   (verify-same
+    #:register-pairs1 (list)
+    #:register-pairs2 (list)
+    (convert `((z = (and x a))
+               (a = (or x a))))
+    (convert `((z = x)))))
     
   (test-case "pinning tests"
     (define p1

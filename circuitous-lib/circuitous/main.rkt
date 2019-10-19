@@ -20,7 +20,7 @@
         (#:constraints [e boolean-expression/c])
         #:rest [_ (listof type)]
         [result circuit?]
-        #:post (c result) (assert-same c result #:contraints c))]))
+        #:post (c result) (assert-same c result #:constraints c))]))
    
 
 (provide
@@ -42,10 +42,8 @@
          #:inputs [inputs (listof (list/c variable/c variable/c))]
          #:outputs [outputs (listof (list/c variable/c variable/c))])
         #:pre (a b inputs outputs)
-        (and (equal? (list->set (circuit-inputs a) (list->set (map first inputs))))
-             (equal? (list->set (circuit-inputs b) (list->set (map second inputs))))
-             (equal? (list->set (circuit-outputs a) (list->set (map first outputs))))
-             (equal? (list->set (circuit-outputs b) (list->set (map second outputs)))))
+        (and (subset? (list->set (circuit-inputs b)) (list->set (map second inputs)))
+             (subset? (list->set (circuit-outputs b)) (list->set (map second outputs))))
         [res (a)
              (and/c circuit? (same-circuit-as/c a))])]
   [propigate&remove
@@ -56,7 +54,7 @@
    (transformer-over/c (list/c boolean-expression/c boolean-expression/c))]
   [rename rename rename ;; because it looks like contract-out looks for rename as a datum-literal :(
           (transformer-over/c (list/c variable/c variable/c))]
-  [circuit->classical
+  [constructive->classical
    (-> (and/c circuit? constructive-circuit?)
        classical-circuit?)]
   [execute (->i ([c circuit?])
@@ -67,12 +65,12 @@
                           (list->set (circuit-inputs c))))
                 (listof (list/c variable/c any/c)))]
   [assert-same (->i ([p circuit?]
-                     [q (p) (and/c circuit? (same-circuit-as/c p))]
-                     #:contraints [c boolean-expression/c])
+                     [q (p) (and/c circuit? (same-circuit-as/c p))])
+                    (#:constraints [c boolean-expression/c])
                     any)]
   [verify-same (->i ([p circuit?]
-                     [q (p) (and/c circuit? (same-circuit-as/c p))]
-                     #:contraints [c boolean-expression/c])
+                     [q (p) (and/c circuit? (same-circuit-as/c p))])
+                    (#:constraints [c boolean-expression/c])
                     [_ (or/c unsat?
                              (list/c sat?
                                      (listof (listof (list/c variable/c any/c)))

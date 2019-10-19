@@ -3,61 +3,29 @@
          (for-syntax syntax/parse)
          racket/syntax
          racket/hash
-         "rosette.rkt")
-(provide
- (except-out (all-defined-out) assert-same)
- (rename-out [assert-same assert-same/redex]
-             [assert-same/smt assert-same]))
-
-
-(module+ test (require rackunit))
+         (rename-in
+          circuitous/main
+          [assert-same assert-same/smt])
+         circuitous/private/redex
+         (only-in circuitous/manipulations
+                  make-circuitf)
+         rackunit)
 
 (define-logger circuits)
 
 (define-syntax define/ppl 
- (syntax-parser
-   #:literals (propigate/remove*)
-   [(_ name f:id before body ...) 
-    #'(begin (define-term name (f before body ...))
-             (assert-same/smt (term before) (term name))
-             (for-each pretty-write (term name)))]
-   [(_ name #:no-check
-       body) 
-    #'(begin (define-term name body)
-             (for-each pretty-write (term name)))]))
+  (syntax-parser
+    #:literals (propigate/remove*)
+    [(_ name f:id before body ...) 
+     #'(begin (define-term name (f before body ...))
+              (assert-same/smt (term before) (term name))
+              (for-each pretty-write (term name)))]
+    [(_ name #:no-check
+        body) 
+     #'(begin (define-term name body)
+              (for-each pretty-write (term name)))]))
 
-(define-language constructive
-  (P ::= (e ...))
-  (e ::= (a = p))
-  (p q ::= (and p q) (or p q) (not p) const a)
-  (a b c ::= (variable-except true false ⊥))
-  (const ::= true false ⊥)
-  (C ::=
-     hole
-     (and C p)
-     (and p C)
-     (or C p)
-     (or p C)
-     (not C)))
 
-(define-language classical
-  (P ::= (e ...))
-  (e ::= (a = p))
-  (p q ::= (and p q) (or p q) (not p) const a)
-  (a b c ::= (ann a*) a*)
-  (ann ::= + -)
-  (a* b* ::= variable-not-otherwise-mentioned)
-  (const ::= true false)
-  (C ::=
-     hole
-     (and C p)
-     (and p C)
-     (or C p)
-     (or p C)
-     (not C)))
-     
-
-(define-union-language both (class: classical) (con: constructive))
 
 (define-syntax assert!
   (syntax-parser
@@ -68,81 +36,6 @@
            (error 'assert! (pretty-format 'e))))]))
 
 
-(define-metafunction both
-  convert-P : con:P -> class:P
-  [(convert-P ()) ()]
-  [(convert-P (con:e_1 con:e ...))
-   (class:e_1 class:e_2 class:e_rest ...)
-   (where (class:e_1 class:e_2)
-          (convert-e con:e_1))
-   (where (class:e_rest ...)
-          (convert-P (con:e ...)))])
-
-(define-metafunction both
-  convert-e : con:e -> (class:e class:e)
-  [(convert-e (con:a = con:p))
-   (((+ con:a) = (convert-p + con:p))
-    ((- con:a) = (convert-p - con:p)))])
-
-(define-extended-language both+implies both
-  (con:p con:q ::= .... (implies con:p con:q))
-  (class:p class:q ::= .... (implies class:p class:q)))
-(define-metafunction both+implies
-  convert-p : class:ann con:p -> class:p
-  [(convert-p + (and con:p con:q))
-   (and (convert-p + con:p) (convert-p + con:q))]
-  [(convert-p - (and con:p con:q))
-   (or (convert-p - con:p) (convert-p - con:q))]
-  [(convert-p + (or con:p con:q))
-   (or (convert-p + con:p) (convert-p + con:q))]
-  [(convert-p - (or con:p con:q))
-   (and (convert-p - con:p) (convert-p - con:q))]
-  [(convert-p - (not con:p))
-   (convert-p + con:p)]
-  [(convert-p + (not con:p))
-   (convert-p - con:p)]
-  [(convert-p class:ann con:a)
-   (class:ann con:a)]
-  [(convert-p + true)
-   true]
-  [(convert-p - true)
-   false]
-  [(convert-p + false)
-   false]
-  [(convert-p - false)
-   true]
-  [(convert-p + ⊥)
-   false]
-  [(convert-p - ⊥)
-   false]
-  ;; TODO this are not validated
-  [(convert-p + (implies con:p con:q))
-   (or (convert-p - con:p)
-       (and (convert-p + con:p)
-            (convert-p + con:q)))]
-  [(convert-p - (implies con:p con:q))
-   (and (convert-p + con:p)
-        (convert-p - con:q))])
-
-(module+ test
-  (check-equal?
-   (term (convert-P ((a = b))))
-   (term (((+ a) = (+ b)) ((- a) = (- b))))))
-
-#|
-The COS circuit for:
-
-|#
-#;(signal S1
-    (present
-     S1
-     (seq
-      (emit S2)
-      (present
-       S2
-       nothing
-       (emit S1)))
-     nothing))
 
 (define a-circuit
   (term
@@ -158,66 +51,7 @@ The COS circuit for:
                 present-S2-term)])))
 (define b-circuit (term (convert-P ,a-circuit)))
 
-(define-metafunction classical
-  remove : P a ... -> P
-  [(remove P) P]
-  [(remove (e_1 ... (a = p) e_2 ...) a b ...)
-   (remove (e_1 ... e_2 ...) b ...)])
 
-(define-metafunction classical
-  propigate/remove* : P a ... -> P
-  [(propigate/remove* P a ...)
-   (remove (propigate* P a ...) a ...)])
-
-(define-metafunction classical
-  propigate* : P a ... -> P
-  [(propigate* P) P]
-  [(propigate* P a b ...)
-   (propigate* (propigate P a) b ...)])
-
-(define-metafunction classical
-  propigate : P a -> P
-  [(propigate P a)
-   (replace P a (get a P))])
-
-(define-metafunction classical
-  get : a P -> p
-  [(get a (_ ... (a = p) _ ...))
-   p])
-
-(define-metafunction classical
-  rename* : P a a -> P
-  [(rename* P a_1 a_2)
-   (e_1 ... (a_2 = p) e_2 ...)
-   (where (e_1 ... (a_1 = p) e_2 ...)
-          (replace* P (a_1 a_2)))]
-  [(rename* P a_1 a_2)
-   (replace* P (a_1 a_2))])
-
-(define-metafunction classical
-  replace* : P (p p) ... -> P
-  [(replace* P) P]
-  [(replace* P (q_1 q_2) any_r ...)
-   (replace* (replace P q_1 q_2) any_r ...)])
-
-(define-metafunction classical
-  replace : P p p -> P
-  [(replace ((a = p) ...) q_1 q_2)
-   ((a = (replace-p p q_1 q_2)) ...)])
-(define-metafunction classical
-  replace-p : p p p -> p
-  [(replace-p q_1 q_1 q_2)
-   q_2]
-  [(replace-p (not p)  q_1 q_2)
-   (not (replace-p p q_1 q_2))]
-  [(replace-p (and p q)  q_1 q_2)
-   (and (replace-p p q_1 q_2)
-        (replace-p q q_1 q_2))]
-  [(replace-p (or p q)  q_1 q_2)
-   (or (replace-p p q_1 q_2)
-       (replace-p q q_1 q_2))]
-  [(replace-p p_other  q_1 q_2)
-   p_other])
 
 ;                                              
 ;                                              
@@ -290,9 +124,18 @@ The COS circuit for:
   all-con : P -> (((a = const) ...) ...)
   [(all-con ((a = p) ...))
    (get-vals-con
+    ,(remove-duplicates
+      (remove* (term (a ...))
+               (term (b ... ...)))))
+   (where ((b ...) ...)
+          ((vars p) ...))])
+
+(define-metafunction constructive
+  FV : P -> (a ...)
+  [(FV ((a = p) ...))
    ,(remove-duplicates
      (remove* (term (a ...))
-              (term (b ... ...)))))
+              (term (b ... ...))))
    (where ((b ...) ...)
           ((vars p) ...))])
 
@@ -358,14 +201,14 @@ The COS circuit for:
               (p = const)
               (p = unevalable-p)]
   [unevalable-p ::=
-              a
-              (or ⊥ unevalable-p)
-              (or unevalable-p ⊥)
-              (or unevalable-p unevalable-p)
-              (and unevalable-p unevalable-p)
-              (and ⊥ unevalable-p)
-              (and unevalable-p ⊥)
-              (not unevalable-p)]
+                a
+                (or ⊥ unevalable-p)
+                (or unevalable-p ⊥)
+                (or unevalable-p unevalable-p)
+                (and unevalable-p unevalable-p)
+                (and ⊥ unevalable-p)
+                (and unevalable-p ⊥)
+                (not unevalable-p)]
   [v ::= const unevalable-p]
   [E* ::=
       hole
@@ -420,7 +263,7 @@ The COS circuit for:
     (in-hole E false)
     and-0-left]
    [-->
-   (in-hole E (and p false))
+    (in-hole E (and p false))
     (in-hole E false)
     and-0-right]
    [-->
@@ -605,28 +448,6 @@ The COS circuit for:
   (log-circuits-debug "q = ~a" (pretty-format q*))
   (values p* q*))
 
-(define (assert-same/smt p q
-                         #:constraints [constraints `true]
-                         #:outputs [outputs #f])
-  (define x
-    (verify-same p q
-                 #:constraints constraints
-                 #:outputs outputs))
-  (unless (unsat? x)
-    (match-define (list sat p1 q1) x)
-    (define the-diff
-      (for*/list ([l (in-list p1)]
-                  [r (in-list q1)]
-                  #:when (and (equal? (first l) (first r))
-                              (not (equal? (second l) (second r)))))
-        (list l r)))
-    (error 'assert-same
-           "rosette model gave counterexample:\n~a\n~a\n~a\n~a"
-           (pretty-format sat)
-           (pretty-format the-diff)
-           (pretty-format p1)
-           (pretty-format q1))))
-
 (define (assert-same p q)
   (define-values (p* q*)
     (get-constructive-checked-form p q))
@@ -642,7 +463,7 @@ The COS circuit for:
   
   (unless (empty? res*)
     (error 'equal-class
-           "the diff:\n ~a"
+           "assert-same model\nthe diff:\n ~a"
            (pretty-format res*))))
 
 (define (first-is-not-superset a b)
@@ -720,232 +541,218 @@ The COS circuit for:
 ;                                                    
 
 
-(module+ test
-  (define (map-conv x)
-    (map (lambda (x) (term (convert-P ,x)))
-         x))
-  (check-equal?
-   (list->set (term (interp-con ((a = b)))))
-   (set (term ((a = true)))
-        (term ((a = false)))
-        (term ((a = ⊥)))))
-  (check-equal?
-   (list->set (term (interp-class ((a = b)))))
-   (set (term ((a = true)))
-        (term ((a = false)))))
-  (check-equal?
-   (list->set (term (interp-class (convert-P ((a = b))))))
-   (set (term (((+ a) = false) ((- a) = false)))
-        (term (((+ a) = true) ((- a) = false)))
-        (term (((+ a) = false) ((- a) = true)))))
-  (check-equal?
-   (apply-reduction-relation*
-    ->b
-    (term
+(define (map-conv x)
+  (map (lambda (x) (term (convert-P ,x)))
+       x))
+(check-equal?
+ (list->set (term (interp-con ((a = b)))))
+ (set (term ((a = true)))
+      (term ((a = false)))
+      (term ((a = ⊥)))))
+(check-equal?
+ (list->set (term (interp-class ((a = b)))))
+ (set (term ((a = true)))
+      (term ((a = false)))))
+(check-equal?
+ (list->set (term (interp-class (convert-P ((a = b))))))
+ (set (term (((+ a) = false) ((- a) = false)))
+      (term (((+ a) = true) ((- a) = false)))
+      (term (((+ a) = false) ((- a) = true)))))
+(check-equal?
+ (apply-reduction-relation*
+  ->b
+  (term
+   ((K0 = (and left (and right both)))
+    (right = (or true rem)))))
+ (term
+  (((K0 = (and left both))
+    (right = true)))))
+(test-begin
+ (check-equal?
+  (list->set (map-conv (term (interp-con ((a = (and true true)))))))
+  (list->set (term (interp-class (convert-P ((a = (and true true))))))))
+ (let ()
+   (define-term s
      ((K0 = (and left (and right both)))
-      (right = (or true rem)))))
-   (term
-    (((K0 = (and left both))
-      (right = true)))))
-  (test-begin
+      (left = (or l0 lem))
+      (right = (or r0 rem))
+      (l0 = GO)
+      (lem = (not (or GO false)))
+      (rem = (not (or GO sel)))
+      (both = (or l0 r0))))
    (check-equal?
-    (list->set (map-conv (term (interp-con ((a = (and true true)))))))
-    (list->set (term (interp-class (convert-P ((a = (and true true))))))))
-   (let ()
-     (define-term s
-       ((K0 = (and left (and right both)))
-        (left = (or l0 lem))
-        (right = (or r0 rem))
-        (l0 = GO)
-        (lem = (not (or GO false)))
-        (rem = (not (or GO sel)))
-        (both = (or l0 r0))))
-     (check-equal?
-      (list->set (map-conv (term (interp-con s))))
-      (list->set (term (interp-class (convert-P s))))))
-   (redex-check
-    constructive
-    P
-    (equal?
-     (list->set (map-conv (term (interp-con P))))
-     (list->set (term (interp-class (convert-P P)))))))
-  (check-not-exn
-   (lambda ()
-     (assert-same
-      (term ((a = b) (b = c)))
-      (term ((a = c))))))
-  (check-not-exn
-   (lambda ()
-     (assert-same/smt
-      (term ((a = b) (b = c)))
-      (term ((a = c))))))
-  (check-not-exn
-   (lambda ()
-     (assert-same
-      (term (convert-P ((a = b) (b = c))))
-      (term (convert-P ((a = c)))))))
-  (check-not-exn
-   (lambda ()
-     (assert-same/smt
-      (term (convert-P ((a = b) (b = c))))
-      (term (convert-P ((a = c)))))))
-  (check-exn
-   #rx"the diff"
-   (lambda ()
-     (assert-same (term ((a = b)))
-                  (term ((a = true))))))
-  (check-exn
-   #rx"assert-same.*model"
-   (lambda ()
-     (assert-same/smt (term ((a = b)))
-                      (term ((a = true))))))
-  (check-exn
-   #rx"the diff"
-   (lambda ()
-     (assert-same
-      (term ((a = b) (b = c)))
-      (term ((a = true))))))
-  (check-exn
-   #rx"assert-same.*model"
-   (lambda ()
-     (assert-same/smt
-      (term ((a = b) (b = c)))
-      (term ((a = true))))))
-  (check-exn
-   #rx"the diff"
-   (lambda ()
-     (assert-same
-      (term (convert-P ((a = b) (b = c))))
-      (term (convert-P ((a = true)))))))
-  (check-exn
-   #rx"assert-same.*model"
-   (lambda ()
-     (assert-same/smt
-      (term (convert-P ((a = b) (b = c))))
-      (term (convert-P ((a = true)))))))
-  (check-exn
-   #rx"the diff"
-   (lambda ()
-     (assert-same
-      (term ((SEL = reg-out)
-             (k2 = GO)
-             ))
-      (term
-       ((SEL = false)
-        (k2 = GO)
-        )))))
-  (check-exn
-   #rx"assert-same.*model"
-   (lambda ()
-     (assert-same/smt
-      (term ((SEL = reg-out)
-             (k2 = GO)
-             ))
-      (term
-       ((SEL = false)
-        (k2 = GO)
-        )))))
-  (test-case "constructivity vs classical tests"
-    (test-case "postive/negative part check"
-      (check-exn
-       #rx"z does not have a positive and negative part"
-       (lambda ()
-         (assert-same
-          (term
-           (((+ z) = true)))
-          (term ())))))
-    (test-case "postive/negative part check"
-      (check-exn
-       #rx"z does not have a positive and negative part"
-       (lambda ()
-         (assert-same
-          (term
-           (((- z) = true)))
-          (term ())))))
-    (test-case "Initial example of constructive vs classical from Malik 1994"
-      (check-exn
-       #rx"the diff"
-       (lambda ()
-         (assert-same
-          (term
-           ((z = (and x a))
-            (a = (or x a))))
-          (term ((z = x))))))
-      (check-exn
-       #rx"assert-same.*model"
-       (lambda ()
-         (assert-same/smt
-          (term
-           ((z = (and x a))
-            (a = (or x a))))
-          (term ((z = x)))))))
-    (test-case "empty circuit is always constructive"
-      (check-exn
-       #rx"the diff"
-       (lambda ()
-         (assert-same
-          (term ((a = a)))
-          (term ()))))
-      (check-exn
-       #rx"assert-same.*model"
-       (lambda ()
-         (assert-same/smt
-          (term ((a = a)))
-          (term ()))))
-      (check-exn
-       #rx"the diff"
-       (lambda ()
-         (assert-same
-          (term ((a = b)
-                 (b = a)))
-          (term ()))))
-      (check-exn
-       #rx"assert-same.*model"
-       (lambda ()
-         (assert-same/smt
-          (term ((a = b)
-                 (b = a)))
-          (term ())))))
-    (test-case "a cycle is never constructive"
-      (check-not-exn
-       (lambda ()
-         (assert-same
-          (term ((a = a)))
-          (term ((a = ⊥))))))
-      (check-not-exn
-       (lambda ()
-         (assert-same/smt
-          (term ((a = a)))
-          (term ((a = ⊥))))))))
-  (test-case "pinning tests"
-    (let ()
-      (define p1
+    (list->set (map-conv (term (interp-con s))))
+    (list->set (term (interp-class (convert-P s))))))
+ (redex-check
+  constructive
+  P
+  (equal?
+   (list->set (map-conv (term (interp-con P))))
+   (list->set (term (interp-class (convert-P P)))))))
+(define-syntax check-exn-against
+  (syntax-parser
+    [(_ check ...
+        #:inputs (a:id ...)
+        #:outputs (b:id ...)
+        (body1 ...) (body2 ...))
+     #`(begin
+         #,(syntax/loc this-syntax
+             (check ...
+              (lambda ()
+                (assert-same
+                 (term (body1 ...))
+                 (term (body2 ...))))))
+         #,(syntax/loc this-syntax
+             (check ...
+              (lambda ()
+                (assert-same/smt
+                 (make-circuit #:inputs '(a ...)
+                               #:outputs '(b ...)
+                               body1 ...)
+                 (make-circuit #:inputs '(a ...)
+                               #:outputs '(b ...)
+                               body2 ...)))))
+         #,(syntax/loc this-syntax
+             (check ...
+              (lambda ()
+                (assert-same
+                 (term (convert-P (body1 ...)))
+                 (term (convert-P (body2 ...)))))))
+         #,(syntax/loc this-syntax
+             (check ...
+              (lambda ()
+                (assert-same/smt
+                 (constructive->classical
+                  (make-circuit #:inputs '(a ...)
+                                #:outputs '(b ...)
+                                body1 ...))
+                 (constructive->classical
+                  (make-circuit #:inputs '(a ...)
+                                #:outputs '(b ...)
+                                body2 ...)))))))]))
+          
+
+(check-exn-against
+ check-not-exn
+ #:inputs (c) #:outputs (a)
+ ((a = b) (b = c))
+ ((a = c)))
+(check-exn-against
+ check-exn #rx"assert-same.*model"
+ #:inputs (b) #:outputs (a)
+ ((a = b))
+ ((a = true)))
+(check-exn-against
+ check-exn #rx"assert-same.*model"
+ #:inputs (GO reg-out)
+ #:outputs (SEL k2)
+ ((SEL = reg-out) (k2 = GO))
+ ((SEL = false) (k2 = GO)))
+  
+(test-case "constructivity vs classical tests"
+  (test-case "postive/negative part check"
+    (check-exn
+     #rx"z does not have a positive and negative part"
+     (lambda ()
+       (assert-same
         (term
-         (
-          ;; these come from then nothing
-          (l0 = GO)
-          (lsel = false)
-          ;; SEL
-          (SEL = (or lsel rsel))
-          ;; the synchonizer
-          (K0 = (and left0 (and right0 both0)))
-          (left0 = (or l0 lem))
-          (right0 = (or r0 rem))
-          (lem = (and SEL (and RES (not lsel))))
-          (rem = (and SEL (and RES (not rsel))))
-          (both0 = (or l0 r0)))))
-      (define p2 (term ((K0 = r0) (SEL = rsel))))
-      (check-exn
-       #rx"assert-same.*model"
-       (lambda () (assert-same/smt p1 p2)))))
+         (((+ z) = true)))
+        (term ())))))
+  (test-case "postive/negative part check"
+    (check-exn
+     #rx"z does not have a positive and negative part"
+     (lambda ()
+       (assert-same
+        (term
+         (((- z) = true)))
+        (term ())))))
+  (test-case "Initial example of constructive vs classical from Malik 1994"
+    (check-exn-against
+     check-exn #rx"assert-same.*model"
+     #:inputs (x)
+     #:outputs (z)
+     ((z = (and x a)) (a = (or x a)))
+     ((z = x))))
+  (test-case "empty circuit is always non constructive"
+    (check-exn-against
+     check-exn #rx"assert-same.*model"
+     #:inputs ()
+     #:outputs ()
+     ((a = a))
+     ())
+    (check-exn-against
+     check-not-exn
+     #:inputs ()
+     #:outputs ()
+     ((a = true))
+     ())
+    (check-exn-against
+     check-exn #rx"assert-same.*model"
+     #:inputs ()
+     #:outputs ()
+     ((a = b)
+      (b = a))
+     ()))
+  (test-case "a cycle is never constructive"
+    (check-exn-against
+     check-not-exn
+     #:inputs ()
+     #:outputs (a)
+     ((a = a))
+     ((a = ⊥)))))
+(test-case "pinning tests"
+  (let ()
+    (define p1
+      (make-circuit
+       #:inputs '(GO SEL)
+       #:outputs '(K0 SEL)
+       (l0 = GO)
+       (lsel = false)
+       ;; SEL
+       (SEL = (or lsel rsel))
+       ;; the synchonizer
+       (K0 = (and left0 (and right0 both0)))
+       (left0 = (or l0 lem))
+       (right0 = (or r0 rem))
+       (lem = (and SEL (and RES (not lsel))))
+       (rem = (and SEL (and RES (not rsel))))
+       (both0 = (or l0 r0))))
+    (define p2
+      (make-circuit
+       #:inputs '()
+       #:outputs '(K0 SEL)
+       (K0 = r0) (SEL = rsel)))
+    (check-exn
+     #rx"assert-same.*model"
+     (lambda () (assert-same/smt p1 p2)))))
       
            
-  (redex-check
-   constructive
-   P
-   (begin
-     (when (term (well-formed P))
-       (assert-same (term P) (term P))
-       (assert-same/smt (term P) (term P))
-       (assert-same/smt (term (convert-P P))
-                        (term (convert-P P)))))))
+(redex-check
+ constructive
+ P
+ (begin
+   (when (term (well-formed P))
+     (assert-same (term P) (term P))
+     (assert-same/smt (apply
+                       make-circuitf
+                       #:inputs (term (FV P))
+                       #:outputs (map first (term P)) 
+                       empty (term P))
+                      (apply
+                       make-circuitf
+                       #:inputs (term (FV P))
+                       #:outputs (map first (term P)) 
+                       empty (term P)))
+     (assert-same/smt
+      (constructive->classical
+       (apply
+        make-circuitf
+        #:inputs (term (FV P))
+        #:outputs (map first (term P)) 
+        empty (term P)))
+      (constructive->classical
+       (apply
+        make-circuitf
+        #:inputs (term (FV P))
+        #:outputs (map first (term P)) 
+        empty (term P)))))))

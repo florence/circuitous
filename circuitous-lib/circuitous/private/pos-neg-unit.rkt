@@ -20,7 +20,7 @@
                (list x #t)
                (list x #f)))
          i))
-
+  (define initial-value #f)
   (define (f-or a b)
     (lambda (w)
       (or (a w) (b w))))

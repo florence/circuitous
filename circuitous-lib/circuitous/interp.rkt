@@ -24,55 +24,64 @@
     (export (prefix three-valued: interp^))
     (link interp@ three-valued@))
 
+(define-logger circuit-solver)
+(define-logger circuit-eval)
+
 (define (execute P . inputs)
-  (if (constructive-circuit? P)
-      (three-valued:eval/multi*
-       inputs
-       (circuit-term P)
-       (circuit-reg-pairs P))
-      (pos-neg:eval/multi*
-       inputs
-       (circuit-term P)
-       (circuit-reg-pairs P))))
+  (cond [(constructive-circuit? P)
+         (log-circuit-eval-debug
+          "evaling as a constructive circuit")
+         (three-valued:eval/multi*
+          inputs
+          (circuit-term P)
+          (circuit-reg-pairs P))]
+        [else
+         (log-circuit-eval-debug
+          "evaling as a classical circuit")
+         (pos-neg:eval/multi*
+          inputs
+          (circuit-term P)
+          (circuit-reg-pairs P))]))
 
 (define (verify-same P1 P2 #:constraints [constraints `true])
   (define register-pairs1 (circuit-reg-pairs P1))
   (define register-pairs2 (circuit-reg-pairs P2))
-  (define outputs (remove-duplicates (append (circuit-outputs P1) (circuit-outputs P2))))
-  (if (constructive-circuit? P1)
-      (three-valued:verify-same P1 P2
-                                #:register-pairs1 register-pairs1
-                                #:register-pairs2 register-pairs2
-                                #:constraints constraints
-                                #:outputs outputs)
-      (pos-neg:verify-same P1 P2
-                           #:register-pairs1 register-pairs1
-                           #:register-pairs2 register-pairs2
-                           #:constraints constraints
-                           #:outputs outputs)))
+  (define outputs
+    (remove-duplicates (append (circuit-outputs P1) (circuit-outputs P2))))
+  (cond [(constructive-circuit? P1)
+         (log-circuit-solver-debug
+          "solving as a constructive circuit")
+         (three-valued:verify-same (circuit-term P1) (circuit-term P2)
+                                   #:register-pairs1 register-pairs1
+                                   #:register-pairs2 register-pairs2
+                                   #:constraints constraints
+                                   #:outputs outputs)]
+        [else
+         (log-circuit-solver-debug
+          "solving as a classical circuit")
+         (pos-neg:verify-same (circuit-term P1) (circuit-term P2)
+                              #:register-pairs1 register-pairs1
+                              #:register-pairs2 register-pairs2
+                              #:constraints constraints
+                              #:outputs outputs)]))
 
 (define (pos-neg? p)
   (ormap (lambda (x) (list? (first x)))
          p))
 
 (define (assert-same p q #:constraints [constraints `true])
-  (define outputs
-    (remove-duplicates (append (circuit-outputs p)
-                               (circuit-outputs q))))
   (define x
-    (verify-same p q
-                 #:constraints constraints
-                 #:register-pairs1 (circuit-reg-pairs p)
-                 #:register-pairs2 (circuit-reg-pairs q)
-                 #:outputs outputs))
+    (verify-same p q #:constraints constraints))
   (unless (unsat? x)
     (match-define (list sat p1 q1) x)
     (define the-diff
-      (for*/list ([l (in-list p1)]
-                  [r (in-list q1)]
-                  #:when (and (equal? (first l) (first r))
-                              (not (equal? (second l) (second r)))))
-        (list l r)))
+      (for/list ([p1 (in-list p1)]
+                 [q1 (in-list q1)])
+        (for*/list ([l (in-list p1)]
+                    [r (in-list q1)]
+                    #:when (and (equal? (first l) (first r))
+                                (not (equal? (second l) (second r)))))
+          (list l r))))
     (error 'assert-same
            "rosette model gave counterexample:\n~a\n~a\n~a\n~a"
            (pretty-format sat)

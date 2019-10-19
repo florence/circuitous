@@ -5,7 +5,8 @@
          propigate
          rename
          replace
-         circuit->classical)
+         constructive->classical
+         make-circuitf)
          
 (require racket/contract)
 (require redex/reduction-semantics
@@ -41,8 +42,7 @@
     (pattern ⊥)
     (pattern (and a:bool-expr b:bool-expr))
     (pattern (or a:bool-expr b:bool-expr))
-    (pattern (not a:bool-expr))
-    (pattern (reg in:id out:id))))
+    (pattern (not a:bool-expr))))
 
 (define-syntax make-circuit
   (syntax-parser
@@ -62,12 +62,12 @@
                        #:outputs outputs
                        reg-pairs
                        . expr)
-  (circuit inputs outputs expr))
+  (circuit outputs inputs reg-pairs expr))
 
 (define-syntax equations
   (syntax-parser
     [(_ r:bool-equation ...)
-     #'(list
+     #'(cons
         (append r.reg-pairs ...)
         (append r.splice-term ...))]))
 
@@ -91,7 +91,9 @@
     (circuit-term a)
     (second x))))
 
-(define (propigate&remove P . a)
+(define (propigate&remove P
+                          #:constraints [_ 'true]
+                          . a)
   (apply
    make-circuitf
    #:inputs (remove* a (circuit-inputs P))
@@ -103,7 +105,9 @@
    (term (propigate/remove*
           ,(circuit-term P)
           ,@a))))
-(define (propigate P . a)
+(define (propigate P
+                   #:constraints [_ 'true]
+                   . a)
   (apply
    make-circuitf
    #:inputs (circuit-inputs P)
@@ -112,7 +116,9 @@
    (term (propigate*
           ,(circuit-term P)
           ,@a))))
-(define (rename P . a)
+(define (rename P
+                #:constraints [_ 'true]
+                . a)
   (apply
    make-circuitf
    #:inputs (term (replace-p* ,(circuit-inputs P) ,@a))
@@ -120,25 +126,27 @@
    (flatten (circuit-reg-pairs P))
    (term (rename** ,(circuit-term P) ,@a))))
 
-(define (replace P . ps)
+(define (replace P
+                 #:constraints [_ 'true]
+                 . ps)
   (apply
-   (make-circuitf
-    #:inputs (circuit-inputs P)
-    #:outputs (circuit-outputs P)
-    (circuit-reg-pairs P)
-    (term (replace* P ,@ps)))))
+   make-circuitf
+   #:inputs (circuit-inputs P)
+   #:outputs (circuit-outputs P)
+   (circuit-reg-pairs P)
+   (term (replace* P ,@ps))))
 
-(define (circuit->classical P)
+(define (constructive->classical P)
   (define (convert-names x)
     (append-map (lambda (x) (list `(+ ,x) `(- ,x))) x))
   (apply
-   (make-circuitf
-    #:inputs (convert-names (circuit-inputs P))
-    #:outputs (convert-names (circuit-outputs P))
-    (append-map
-     (lambda (x)
-       (list (list `(+ ,(first x)) `(+ ,(first x)))
-             (list `(- ,(first x)) `(- ,(first x)))))
-     (circuit-reg-pairs P))
-    (term (convert-P ,P)))))
+   make-circuitf
+   #:inputs (convert-names (circuit-inputs P))
+   #:outputs (convert-names (circuit-outputs P))
+   (append-map
+    (lambda (x)
+      (list (list `(+ ,(first x)) `(+ ,(first x)))
+            (list `(- ,(first x)) `(- ,(first x)))))
+    (circuit-reg-pairs P))
+   (term (convert-P ,(circuit-term P)))))
     
