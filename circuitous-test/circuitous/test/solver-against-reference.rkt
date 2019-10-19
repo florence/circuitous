@@ -726,33 +726,111 @@
      #rx"assert-same.*model"
      (lambda () (assert-same/smt p1 p2)))))
       
-           
+(redex-check
+ constructive
+ ((a = true) (b = p) ...)
+ (begin
+   (when (term (well-formed ((a = true) (b = p) ...)))
+     (define P (term ((a = true) (b = p) ...)))
+     (define old-check-handler (current-check-handler))
+     (parameterize ([current-check-handler
+                     (lambda (x)
+                       (old-check-handler x)
+                       (raise x))])
+       (check-exn
+        #rx"assert-same.*model"
+        (lambda ()
+          (assert-same P '((a = false)))))
+       (check-exn
+        #rx"assert-same.*model"
+        (lambda ()
+          (assert-same P '((a = a)))))
+       (check-exn
+        #rx"assert-same.*model"
+        (lambda ()
+          (assert-same/smt (apply
+                            make-circuitf
+                            #:inputs (term (FV ,P))
+                            #:outputs (map first P)
+                            empty P)
+                           (apply
+                            make-circuitf
+                            #:inputs '()
+                            #:outputs '(a) 
+                            empty '((a = false))))))
+       (check-exn
+        #rx"assert-same.*model"
+        (lambda ()
+          (assert-same/smt (apply
+                            make-circuitf
+                            #:inputs (term (FV ,P))
+                            #:outputs (map first P)
+                            empty P)
+                           (apply
+                            make-circuitf
+                            #:inputs '()
+                            #:outputs '(a) 
+                            empty '((a = a))))))
+       (check-exn
+        #rx"assert-same.*model"
+        (lambda ()
+          (assert-same/smt
+           (constructive->classical
+            (apply
+             make-circuitf
+             #:inputs (term (FV ,P))
+             #:outputs (map first P)
+             empty P))
+           (constructive->classical
+            (apply
+             make-circuitf
+             #:inputs '()
+             #:outputs '(a) 
+             empty '((a = false)))))))
+       (check-exn
+        #rx"assert-same.*model"
+        (lambda ()
+          (assert-same/smt
+           (constructive->classical
+            (apply
+             make-circuitf
+             #:inputs (term (FV ,P))
+             #:outputs (map first P)
+             empty P))
+           (constructive->classical
+            (apply
+             make-circuitf
+             #:inputs '()
+             #:outputs '(a) 
+             empty '((a = a)))))))))))
 (redex-check
  constructive
  P
  (begin
    (when (term (well-formed P))
-     (assert-same (term P) (term P))
-     (assert-same/smt (apply
-                       make-circuitf
-                       #:inputs (term (FV P))
-                       #:outputs (map first (term P)) 
-                       empty (term P))
-                      (apply
-                       make-circuitf
-                       #:inputs (term (FV P))
-                       #:outputs (map first (term P)) 
-                       empty (term P)))
-     (assert-same/smt
-      (constructive->classical
-       (apply
-        make-circuitf
-        #:inputs (term (FV P))
-        #:outputs (map first (term P)) 
-        empty (term P)))
-      (constructive->classical
-       (apply
-        make-circuitf
-        #:inputs (term (FV P))
-        #:outputs (map first (term P)) 
-        empty (term P)))))))
+     (check-not-exn
+      (lambda ()
+        (assert-same (term P) (term P))
+        (assert-same/smt (apply
+                          make-circuitf
+                          #:inputs (term (FV P))
+                          #:outputs (map first (term P)) 
+                          empty (term P))
+                         (apply
+                          make-circuitf
+                          #:inputs (term (FV P))
+                          #:outputs (map first (term P)) 
+                          empty (term P)))
+        (assert-same/smt
+         (constructive->classical
+          (apply
+           make-circuitf
+           #:inputs (term (FV P))
+           #:outputs (map first (term P)) 
+           empty (term P)))
+         (constructive->classical
+          (apply
+           make-circuitf
+           #:inputs (term (FV P))
+           #:outputs (map first (term P)) 
+           empty (term P)))))))))
