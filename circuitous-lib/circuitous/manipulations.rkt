@@ -1,8 +1,8 @@
 #lang racket/base
 (provide make-circuit
          link
-         propigate&remove
-         propigate
+         propagate&remove
+         propagate
          rename
          replace
          constructive->classical
@@ -109,7 +109,7 @@
     (circuit-term a)
     (second x))))
 
-(define (propigate&remove P
+(define (propagate&remove P
                           #:constraints [_ 'true]
                           . a)
   (apply
@@ -120,10 +120,10 @@
            (or (member (first x) a)
                (member (second x) a)))
          (circuit-reg-pairs P))
-   (term (propigate/remove*
+   (term (propagate/remove*
           ,(circuit-term P)
           ,@a))))
-(define (propigate P
+(define (propagate P
                    #:constraints [_ 'true]
                    . a)
   (apply
@@ -131,7 +131,7 @@
    #:inputs (circuit-inputs P)
    #:outputs (circuit-outputs P)
    (circuit-reg-pairs P)
-   (term (propigate*
+   (term (propagate*
           ,(circuit-term P)
           ,@a))))
 (define (rename P

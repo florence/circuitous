@@ -18,7 +18,7 @@
      #'(->i
         ([c circuit?])
         (#:constraints [e boolean-expression/c])
-        #:rest [_ (listof type)]
+        #:rest [_ (c) (listof (type c))]
         [result circuit?]
         #:post (c result) (assert-same c result #:constraints c))]))
    
@@ -33,6 +33,7 @@
   [boolean-expression/c flat-contract?]
   [circuit-inputs (-> circuit? (listof variable/c))]
   [circuit-outputs (-> circuit? (listof variable/c))]
+  [circuit-domain (-> circuit? (listof variable/c))]
   [variable<? (-> variable/c variable/c boolean?)]
   [constructive-circuit? (-> circuit? any/c)]
   [classical-circuit? (-> circuit? any/c)]
@@ -47,14 +48,20 @@
              (subset? (list->set (circuit-outputs b)) (list->set (map second outputs))))
         [res (a)
              (and/c circuit? (same-circuit-as/c a))])]
-  [propigate&remove
-   (transformer-over/c variable/c)]
-  [propigate
-   (transformer-over/c variable/c)]
+  [propagate&remove
+   (transformer-over/c
+    (λ (c)
+      (and/c variable/c
+             (lambda (x) (member x (circuit-domain c))))))]
+  [propagate
+   (transformer-over/c
+    (λ (c)
+      (and/c variable/c
+             (lambda (x) (member x (circuit-domain c))))))]
   [replace
-   (transformer-over/c (list/c boolean-expression/c boolean-expression/c))]
+   (transformer-over/c (lambda (_) (list/c boolean-expression/c boolean-expression/c)))]
   [rename rename rename ;; because it looks like contract-out looks for rename as a datum-literal :(
-          (transformer-over/c (list/c variable/c variable/c))]
+          (transformer-over/c (λ (_) (list/c variable/c variable/c)))]
   [constructive->classical
    (-> (and/c circuit? constructive-circuit?)
        classical-circuit?)]

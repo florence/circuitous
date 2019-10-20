@@ -1,7 +1,7 @@
 #lang racket/base
 (provide convert-P
-         propigate/remove*
-         propigate*
+         propagate/remove*
+         propagate*
          rename*
          replace*
          rename*/freshen
@@ -120,19 +120,19 @@
    (remove (e_1 ... e_2 ...) b ...)])
 
 (define-metafunction classical
-  propigate/remove* : P a ... -> P
-  [(propigate/remove* P a ...)
-   (remove (propigate* P a ...) a ...)])
+  propagate/remove* : P a ... -> P
+  [(propagate/remove* P a ...)
+   (remove (propagate* P a ...) a ...)])
 
 (define-metafunction classical
-  propigate* : P a ... -> P
-  [(propigate* P) P]
-  [(propigate* P a b ...)
-   (propigate* (propigate P a) b ...)])
+  propagate* : P a ... -> P
+  [(propagate* P) P]
+  [(propagate* P a b ...)
+   (propagate* (propagate P a) b ...)])
 
 (define-metafunction classical
-  propigate : P a -> P
-  [(propigate P a)
+  propagate : P a -> P
+  [(propagate P a)
    (replace P a (get a P))])
 
 (define-metafunction classical

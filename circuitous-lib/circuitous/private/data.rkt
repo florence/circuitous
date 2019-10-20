@@ -1,9 +1,13 @@
 #lang racket/base
 (provide (struct-out circuit)
-         variable<?)
-(require racket/match)
+         variable<?
+         circuit-domain)
+(require racket/match
+         racket/list)
 (struct circuit (outputs inputs reg-pairs term)
   #:transparent)
+(define (circuit-domain c)
+  (map first (circuit-term c)))
 (define (variable<? x y)
   (match* (x y)
     [(`(+ ,x) `(+ ,y))
