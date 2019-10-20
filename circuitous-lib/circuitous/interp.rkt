@@ -72,10 +72,6 @@
                               #:constraints constraints
                               #:outputs outputs)]))
 
-(define (pos-neg? p)
-  (ormap (lambda (x) (list? (first x)))
-         p))
-
 (define (assert-same p q #:constraints [constraints `true])
   (define x
     (verify-same p q #:constraints constraints))

@@ -188,8 +188,8 @@
        (and (make-extra e1)
             (make-extra e2)))
      (define const
-       (and (constraints e1)
-            (constraints e1)))))
+       (and (make-c e1)
+            (make-c e1)))))
   
   (define-syntax do-verify
     (syntax-parser
