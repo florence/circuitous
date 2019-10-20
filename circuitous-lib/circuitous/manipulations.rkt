@@ -25,24 +25,39 @@
     #:attributes (splice-term reg-pairs lhs)
     (pattern (a:id = b:bool-expr)
              #:attr splice-term
-             #''((a = b))
+             #''((a = b.term))
              #:attr reg-pairs #''()
              #:attr lhs #'a)
     (pattern (reg in:id out:id = b:bool-expr)
              #:attr splice-term
-             #''((in = b))
+             #''((in = b.term))
              #:attr reg-pairs
              #''((in out))
              #:attr lhs #'in))
   (define-syntax-class bool-expr
     #:datum-literals (and or not true false ⊥ reg)
-    (pattern name:id)
-    (pattern true)
-    (pattern false)
-    (pattern ⊥)
-    (pattern (and a:bool-expr b:bool-expr))
-    (pattern (or a:bool-expr b:bool-expr))
-    (pattern (not a:bool-expr))))
+    #:attributes (term)
+    (pattern name:id
+             #:attr term #'name)
+    (pattern true
+             #:attr term #'true)
+    (pattern false
+             #:attr term #'false)
+    (pattern #t
+             #:attr term #'true)
+    (pattern #f
+             #:attr term #'false)
+    (pattern ⊥
+             #:attr term #'⊥)
+    (pattern (and a:bool-expr b:bool-expr)
+             #:attr term
+             #'(and a.term b.term))
+    (pattern (or a:bool-expr b:bool-expr)
+             #:attr term
+             #'(or a.term b.term))
+    (pattern (not a:bool-expr)
+             #:attr term
+             #'(not a.term))))
 
 (define-syntax make-circuit
   (syntax-parser
@@ -62,7 +77,10 @@
                        #:outputs outputs
                        reg-pairs
                        . expr)
-  (circuit outputs inputs reg-pairs expr))
+  (circuit (sort outputs variable<?)
+           (sort inputs variable<?)
+           (sort reg-pairs variable<? #:key first)
+           (sort expr variable<? #:key first)))
 
 (define-syntax equations
   (syntax-parser

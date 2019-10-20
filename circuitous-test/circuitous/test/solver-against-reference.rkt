@@ -1,6 +1,7 @@
 #lang racket
 (require redex/reduction-semantics
          (for-syntax syntax/parse)
+         syntax/parse/define
          racket/syntax
          racket/hash
          (rename-in
@@ -9,23 +10,10 @@
          circuitous/private/redex
          (only-in circuitous/manipulations
                   make-circuitf)
-         rackunit)
+         rackunit
+         racket/random)
 
 (define-logger circuits)
-
-(define-syntax define/ppl 
-  (syntax-parser
-    #:literals (propigate/remove*)
-    [(_ name f:id before body ...) 
-     #'(begin (define-term name (f before body ...))
-              (assert-same/smt (term before) (term name))
-              (for-each pretty-write (term name)))]
-    [(_ name #:no-check
-        body) 
-     #'(begin (define-term name body)
-              (for-each pretty-write (term name)))]))
-
-
 
 (define-syntax assert!
   (syntax-parser
@@ -128,16 +116,7 @@
       (remove* (term (a ...))
                (term (b ... ...)))))
    (where ((b ...) ...)
-          ((vars p) ...))])
-
-(define-metafunction constructive
-  FV : P -> (a ...)
-  [(FV ((a = p) ...))
-   ,(remove-duplicates
-     (remove* (term (a ...))
-              (term (b ... ...))))
-   (where ((b ...) ...)
-          ((vars p) ...))])
+          ((vars-con p) ...))])
 
 (define-metafunction constructive
   get-vals-con : (a ...) -> (((a = const) ...) ...)
@@ -160,20 +139,9 @@
       a<))
           
    (where ((b ...) ...)
-          ((vars p) ...))])
+          ((vars-class p) ...))])
 
-(define (a< x y)
-  ((term-match/single
-    evalu
-    [(a* b*)
-     (symbol<? (term a*) (term b*))]
-    [((+ a*) (- a*))
-     #t]
-    [((- a*) (+ a*))
-     #f]
-    [((ann_1 a*) (ann_2 b*))
-     (symbol<? (term a*) (term b*))])
-   (list x y)))
+(define a< variable<?)
 
 (define-metafunction classical
   get-vals-class : (a ...) -> (((a = const) ...) ...)
@@ -213,25 +181,12 @@
   [E* ::=
       hole
       (and E* p)
-      (and v E*)
+      (and unevalable-p E*)
+      (and ⊥ E*)
       (or E* p)
-      (or v E*)
+      (or unevalable-p E*)
+      (or ⊥ E*)
       (not E*)])
-
-
-(define-metafunction evalu
-  vars : p -> (a ...)
-  [(vars (and p q))
-   (a ... b ...)
-   (where (a ...) (vars p))
-   (where (b ...) (vars q))]
-  [(vars (or p q))
-   (a ... b ...)
-   (where (a ...) (vars p))
-   (where (b ...) (vars q))]
-  [(vars (not p)) (vars p)]
-  [(vars a) (a)]
-  [(vars const) ()])
 
 (define-metafunction evalu
   eval-con : P ((a = const) ...) -> ((unevalable ...) ...)
@@ -242,8 +197,6 @@
   eval-clas : P ((a = const) ...) -> ((unevalable ...) ...)
   [(eval-clas P ((a = const) ...))
    ,(apply-reduction-relation* ->b (term (replace* P (a const) ...)))])
-
-
 
 (define ->b
   (reduction-relation
@@ -257,6 +210,7 @@
    [-->
     (in-hole E (and p true))
     (in-hole E p)
+    (side-condition (not (equal? 'true (term p))))
     and-1-right]
    [-->
     (in-hole E (and false p))
@@ -265,6 +219,7 @@
    [-->
     (in-hole E (and p false))
     (in-hole E false)
+    (side-condition (not (equal? 'false (term p))))
     and-0-right]
    [-->
     (in-hole E (and ⊥ ⊥))
@@ -278,6 +233,7 @@
    [-->
     (in-hole E (or p true))
     (in-hole E true)
+    (side-condition (not (equal? 'true (term p))))
     or-1-right]
    [-->
     (in-hole E (or false p))
@@ -286,6 +242,7 @@
    [-->
     (in-hole E (or p false))
     (in-hole E p)
+    (side-condition (not (equal? 'false (term p))))
     or-0-right]
    [-->
     (in-hole E (or ⊥ ⊥))
@@ -382,7 +339,10 @@
   get-constructive-expression : P -> p
   [(get-constructive-expression ((a = p) ...))
    (get-constructive-expression-acc (c ...) (c ...) true)
-   (where ((b ...) ...) ((vars p) ...))
+   (where ((b ...) ...)
+          ,(if (redex-match? constructive P (term ((a = p) ...)))
+               (term ((vars-con p) ...))
+               (term ((vars-class p) ...))))
    (where (c ...) ,(remove-duplicates (term (a ... b ... ...))))])
 
 (module+ test
@@ -451,8 +411,7 @@
 (define (assert-same p q)
   (define-values (p* q*)
     (get-constructive-checked-form p q))
-  (define res
-    (term (interp-both-class ,p* ,q*)))
+  (define res (term (interp-both-class ,p* ,q*)))
   (define res*
     (for*/list ([x (in-list res)]
                 [y (in-value
@@ -517,6 +476,26 @@
    (where ((a_!_1 = p_1) (a_!_1 = p_2) ...)
           ((a = p) e ...))]
   [(well-formed P) #f])
+
+
+(define (limit-fvs P #:to [count 5])
+  (define l (term (FV ,P)))
+  (cond
+    [(< (length l) count)
+     P]
+    [else
+     (define-values (_ remove) (split-at l count))
+     (for/fold ([P P])
+               ([x (in-list remove)])
+       (term (replace* ,P (,x ,(random-ref `(true false ⊥))))))]))
+
+(define-extended-language constructive-test constructive 
+  (Pt ::= ((a = pt) ...))
+  (pt ::=
+      (and vt vt)
+      (or vt vt)
+      (not vt))
+  (vt ::= a true false ⊥))
 
 
 ;                                                    
@@ -704,7 +683,7 @@
   (let ()
     (define p1
       (make-circuit
-       #:inputs '(GO SEL)
+       #:inputs '(GO rsel)
        #:outputs '(K0 SEL)
        (l0 = GO)
        (lsel = false)
@@ -725,13 +704,37 @@
     (check-exn
      #rx"assert-same.*model"
      (lambda () (assert-same/smt p1 p2)))))
-      
+(test-case "regression tests"
+  (check-exn-against
+   check-exn
+   #rx"assert-same.*model"
+   #:inputs ()
+   #:outputs ()
+   ((q = ⊥))
+   ())
+  (check-exn-against
+   check-not-exn
+   #:inputs (g e b)
+   #:outputs (EQ jsLc X s)
+   ((hKf = true)
+    (EQ = (and g e))
+    (jsLc = (or (not ⊥) b))
+    (X = (and ⊥ (or (or ⊥ ⊥) false)))
+    (s = (and (not (and ⊥ ⊥)) false)))
+   ((hKf = true)
+    (EQ = (and g e))
+    (jsLc = (or (not ⊥) b))
+    (X = (and ⊥ (or (or ⊥ ⊥) false)))
+    (s = (and (not (and ⊥ ⊥)) false)))))
+
+
 (redex-check
- constructive
- ((a = true) (b = p) ...)
- (begin
-   (when (term (well-formed ((a = true) (b = p) ...)))
-     (define P (term ((a = true) (b = p) ...)))
+ constructive-test
+ ((a = true) (b = pt) ...)
+ (let ()
+   (define P (term ((a = true) (b = pt) ...)))
+   ;(printf "testing ~a\n" (term ,P))
+   (when (term (well-formed ,P))
      (define old-check-handler (current-check-handler))
      (parameterize ([current-check-handler
                      (lambda (x)
@@ -740,24 +743,11 @@
        (check-exn
         #rx"assert-same.*model"
         (lambda ()
-          (assert-same P '((a = false)))))
+          (assert-same P (term ((a = false))))))
        (check-exn
         #rx"assert-same.*model"
         (lambda ()
-          (assert-same P '((a = a)))))
-       (check-exn
-        #rx"assert-same.*model"
-        (lambda ()
-          (assert-same/smt (apply
-                            make-circuitf
-                            #:inputs (term (FV ,P))
-                            #:outputs (map first P)
-                            empty P)
-                           (apply
-                            make-circuitf
-                            #:inputs '()
-                            #:outputs '(a) 
-                            empty '((a = false))))))
+          (assert-same P (term ((a = a))))))
        (check-exn
         #rx"assert-same.*model"
         (lambda ()
@@ -769,8 +759,21 @@
                            (apply
                             make-circuitf
                             #:inputs '()
-                            #:outputs '(a) 
-                            empty '((a = a))))))
+                            #:outputs (term (a)) 
+                            empty (term ((a = false)))))))
+       (check-exn
+        #rx"assert-same.*model"
+        (lambda ()
+          (assert-same/smt (apply
+                            make-circuitf
+                            #:inputs (term (FV ,P))
+                            #:outputs (map first P)
+                            empty P)
+                           (apply
+                            make-circuitf
+                            #:inputs '()
+                            #:outputs (term (a)) 
+                            empty (term ((a = a)))))))
        (check-exn
         #rx"assert-same.*model"
         (lambda ()
@@ -785,8 +788,8 @@
             (apply
              make-circuitf
              #:inputs '()
-             #:outputs '(a) 
-             empty '((a = false)))))))
+             #:outputs (term (a)) 
+             empty (term ((a = false))))))))
        (check-exn
         #rx"assert-same.*model"
         (lambda ()
@@ -801,36 +804,80 @@
             (apply
              make-circuitf
              #:inputs '()
-             #:outputs '(a) 
-             empty '((a = a)))))))))))
+             #:outputs (term (a)) 
+             empty (term ((a = a)))))))))))
+ #:prepare limit-fvs)
 (redex-check
- constructive
- P
+ constructive-test
+ Pt
  (begin
-   (when (term (well-formed P))
+   (when (term (well-formed Pt))
      (check-not-exn
       (lambda ()
-        (assert-same (term P) (term P))
+        (assert-same (term Pt) (term Pt))
         (assert-same/smt (apply
                           make-circuitf
-                          #:inputs (term (FV P))
-                          #:outputs (map first (term P)) 
-                          empty (term P))
+                          #:inputs (term (FV Pt))
+                          #:outputs (map first (term Pt)) 
+                          empty (term Pt))
                          (apply
                           make-circuitf
-                          #:inputs (term (FV P))
-                          #:outputs (map first (term P)) 
-                          empty (term P)))
+                          #:inputs (term (FV Pt))
+                          #:outputs (map first (term Pt)) 
+                          empty (term Pt)))
         (assert-same/smt
          (constructive->classical
           (apply
            make-circuitf
-           #:inputs (term (FV P))
-           #:outputs (map first (term P)) 
-           empty (term P)))
+           #:inputs (term (FV Pt))
+           #:outputs (map first (term Pt)) 
+           empty (term Pt)))
          (constructive->classical
           (apply
            make-circuitf
-           #:inputs (term (FV P))
-           #:outputs (map first (term P)) 
-           empty (term P)))))))))
+           #:inputs (term (FV Pt))
+           #:outputs (map first (term Pt)) 
+           empty (term Pt))))))))
+ #:prepare limit-fvs)
+
+(redex-check
+ constructive-test
+ ((name Pt_1
+        ((a = pt_1) ...))
+  (name Pt_2
+        ((a = pt_2) ...)))
+ (begin
+   
+   (when (and (term (well-formed Pt_1)) (term (well-formed Pt_2)))
+     
+     (define old-check-handler (current-check-handler))
+     (parameterize ([current-check-handler
+                     (lambda (x)
+                       (old-check-handler x)
+                       (raise x))])
+       (define-simple-macro (good g)
+         (with-handlers ([(lambda (x) (not (exn:break? x)))
+                          (lambda (y)
+                            (or
+                             (regexp-match?
+                              #rx"assert-same.*model"
+                              (exn-message y))
+                             y))])
+           (void g)))
+       (check-equal?
+        (good (assert-same (term Pt_1) (term Pt_2)))
+        (good (assert-same/smt
+               (apply
+                make-circuitf
+                #:inputs (term (FV Pt_1))
+                #:outputs (map first (term Pt_1)) 
+                empty (term Pt_1))
+               (apply
+                make-circuitf
+                #:inputs (term (FV Pt_2))
+                #:outputs (map first (term Pt_2)) 
+                empty (term Pt_2))))))))
+ #:prepare
+ (lambda (x)
+   (list (limit-fvs (first x) #:to 2)
+         (limit-fvs (second x) #:to 2))))

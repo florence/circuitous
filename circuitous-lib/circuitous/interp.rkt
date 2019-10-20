@@ -18,16 +18,21 @@
   racket/pretty)
 
 (define-values/invoke-unit/infer
-    (export (prefix pos-neg: interp^))
-    (link interp@ pos-neg@))
+  (export (prefix pos-neg: interp^))
+  (link interp@ pos-neg@))
 (define-values/invoke-unit/infer
-    (export (prefix three-valued: interp^))
-    (link interp@ three-valued@))
+  (export (prefix three-valued: interp^))
+  (link interp@ three-valued@))
 
 (define-logger circuit-solver)
 (define-logger circuit-eval)
 
-(define (execute P . inputs)
+(define (execute P . inputs*)
+  (define inputs
+    (for/list ([input (in-list inputs*)])
+      (for/list ([i (in-list (sort input variable<? #:key first))])
+        (list (first i)
+              (eq? (second i) 'true)))))
   (cond [(constructive-circuit? P)
          (log-circuit-eval-debug
           "evaling as a constructive circuit")

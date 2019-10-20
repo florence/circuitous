@@ -5,10 +5,12 @@
  classical-circuit?
  same-circuit-as/c
  variable/c
- boolean-expression/c)
+ boolean-expression/c
+ distinct?)
 (require "redex.rkt" "data.rkt"
          redex/reduction-semantics
-         racket/contract)
+         racket/contract
+         racket/set)
 
 (define (equations? P)
   (redex-match? constructive P P))
@@ -32,7 +34,11 @@
    "boolean-expression/c"
    (recursive-contract
     (or/c variable/c
+          #f #t
           (list/c 'and boolean-expression/c boolean-expression/c)
           (list/c 'or boolean-expression/c boolean-expression/c)
           (list/c 'not boolean-expression/c))
     #:flat)))
+
+(define (distinct? a b)
+  (equal? (set) (set-intersect (list->set a) (list->set b))))

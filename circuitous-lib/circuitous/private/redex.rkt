@@ -9,7 +9,12 @@
          replace-p*
          classical
          constructive
-         convert-p)
+         convert-p
+         rename-internals
+         vars-class
+         vars-con
+         (rename-out
+          [FV-con FV]))
 (require redex/reduction-semantics
          racket/list)
 (module+ test (require rackunit))
@@ -18,7 +23,7 @@
   (P ::= (e ...))
   (e ::= (a = p))
   (p q ::= (and p q) (or p q) (not p) const a)
-  (a b c ::= (variable-except true false ⊥))
+  (a b c ::= variable-not-otherwise-mentioned)
   (const ::= true false ⊥)
   (C ::=
      hole
@@ -225,3 +230,82 @@
    (where (b ...) (vars-p q))]
   [(vars-p (not p)) (vars-p p)]
   [(vars-p const) ()])
+
+(define-metafunction constructive
+  FV-con : P -> (a ...)
+  [(FV-con ((a = p) ...))
+   ,(remove-duplicates
+     (remove* (term (a ...))
+              (term (b ... ...))))
+   (where ((b ...) ...)
+          ((vars-con p) ...))])
+(define-metafunction classical
+  FV-class : P -> (a ...)
+  [(FV-class ((a = p) ...))
+   ,(remove-duplicates
+     (remove* (term (a ...))
+              (term (b ... ...))))
+   (where ((b ...) ...)
+          ((vars-class p) ...))])
+
+(define-metafunction constructive
+  vars-con : p -> (a ...)
+  [(vars-con (and p q))
+   (a ... b ...)
+   (where (a ...) (vars-con p))
+   (where (b ...) (vars-con q))]
+  [(vars-con (or p q))
+   (a ... b ...)
+   (where (a ...) (vars-con p))
+   (where (b ...) (vars-con q))]
+  [(vars-con (not p)) (vars-con p)]
+  [(vars-con a) (a)]
+  [(vars-con const) ()])
+(define-metafunction classical
+  vars-class : p -> (a ...)
+  [(vars-class (and p q))
+   (a ... b ...)
+   (where (a ...) (vars-class p))
+   (where (b ...) (vars-class q))]
+  [(vars-class (or p q))
+   (a ... b ...)
+   (where (a ...) (vars-class p))
+   (where (b ...) (vars-class q))]
+  [(vars-class (not p)) (vars-class p)]
+  [(vars-class a) (a)]
+  [(vars-class const) ()])
+
+(define (rename-internals P1 P2)
+  (cond
+    [(redex-match? constructive P P1)
+     (define fv-P1* (term (FV-con ,P1))) 
+     (define fv-P2* (term (FV-con ,P2)))
+     (define fv-P1 (remove* fv-P2* fv-P1*))
+     (define fv-P2 (remove* fv-P1* fv-P2*))
+     (list (term (freshen-names-con ,P1 ,fv-P2))
+           (term (freshen-names-con ,P2 ,fv-P1)))]
+    [else
+     (define fv-P1* (term (FV-class ,P1))) 
+     (define fv-P2* (term (FV-class ,P2)))
+     (define fv-P1 (remove* fv-P2* fv-P1*))
+     (define fv-P2 (remove* fv-P1* fv-P2*))
+     (list (term (freshen-names-class ,P1 ,fv-P2))
+           (term (freshen-names-class ,P2 ,fv-P1)))]))
+
+(define-metafunction constructive
+  [(freshen-names-con P (a ...))
+   (rename** P
+            ,@(map (lambda (x) (list x (variable-not-in (term (P a ...)) x)))
+                   (term (a ...))))])
+
+(define-metafunction classical
+  [(freshen-names-class P ()) P]
+  [(freshen-names-class P (a* a ...))
+   (rename** P_r (a* ,(variable-not-in (term (P_r a ...)) (term a*))))
+   (where P_r (freshen-names-class P (a ...)))]
+  [(freshen-names-class P ((ann a*) a ... (ann_2 a*) b ...))
+   (rename** P_r ((ann a*) (ann b*)) ((ann_2 a*) (ann_2 b*)))
+   (where P_r (freshen-names-class P (a ... b ...)))
+   (where b* ,(variable-not-in (term (P_r a ... b ...)) (term a*)))])
+  
+  

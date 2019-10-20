@@ -27,6 +27,17 @@
    list?
    (verify-same
     (make-circuit
+     #:inputs '()
+     #:outputs '(a) 
+     (a = (and a a)))
+    (make-circuit
+     #:inputs '(b)
+     #:outputs '(a) 
+     (b = (and a a)))))
+  (check-pred
+   list?
+   (verify-same
+    (make-circuit
      #:inputs '(x)
      #:outputs '(z)
      (z = (and x a))
@@ -44,14 +55,51 @@
     (make-circuit
      #:inputs '(b) #:outputs '(a)
      (a = true)))))
+(test-case "construction"
+  (check-equal?
+   (circuit-reg-pairs
+    (make-circuit
+     #:inputs '(b) #:outputs '(a out)
+     (a = b)
+     (reg in out = a)))
+   '((in out))))
 (test-case "execute"
+  (check-equal?
+   (execute
+    (make-circuit
+     #:inputs '(a)
+     #:outputs '(b) 
+     (b = (and a a)))
+    '((a true)))
+   '(((a #t) (b #t))))
+  (check-equal?
+   (execute
+    (make-circuit
+     #:inputs '(a)
+     #:outputs '(b) 
+     (b = (and a a)))
+    '((a #f)))
+   '(((a #f) (b #f))))
   (check-equal?
    (execute
     (make-circuit
      #:inputs '(b) #:outputs '(a)
      (a = b))
     '((b true)))
-   (list (list '(b = true) '(a = true)))))
+   (list (list '(b #t) '(a #t))))
+  (check-equal?
+   (execute
+    (make-circuit
+     #:inputs '(b) #:outputs '(a out)
+     (a = b)
+     (reg in out = a))
+    '((b true)) '((b false)) '((b false)))
+   (list (list '(b #t) '(a #t)
+               '(in #t) '(out #f))
+         (list '(b #f) '(a #f)
+               '(in #f) '(out #t))
+         (list '(b #f) '(a #f)
+               '(in #f) '(out #f)))))
 (test-case "constructive->classical"
   (check-pred
    classical-circuit?
@@ -81,9 +129,27 @@
     (make-circuit
      #:inputs '(c) #:outputs '(a)
      (a = c))))
-  #;(execute
-   (constructive->classical
-    (make-circuit
-     #:inputs '(c) #:outputs '(a)
-     (a = c)))
-   '(((+ c) true) ((- c) false))))
+  (check-equal?
+   (execute
+    (constructive->classical
+     (make-circuit
+      #:inputs '(c) #:outputs '(a)
+      (a = c)))
+    '(((+ c) true) ((- c) false)))
+   (list (list '((+ c) #t) '((- c) #f)
+               '((+ a) #t) '((- a) #f))))
+  #;
+  (check-equal?
+   (execute
+    (constructive->classical
+     (make-circuit
+      #:inputs '(b) #:outputs '(a out)
+      (a = b)
+      (reg in out = a))
+     '((b true) (b false) (b false))))
+   (list (list '(b true) '(a true)
+               '(in true) '(out false))
+         (list '(b false) '(a false)
+               '(in false) '(out true))
+         (list '(b false) '(a false)
+               '(in false) '(out false)))))

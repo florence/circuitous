@@ -33,6 +33,7 @@
   [boolean-expression/c flat-contract?]
   [circuit-inputs (-> circuit? (listof variable/c))]
   [circuit-outputs (-> circuit? (listof variable/c))]
+  [variable<? (-> variable/c variable/c boolean?)]
   [constructive-circuit? (-> circuit? any/c)]
   [classical-circuit? (-> circuit? any/c)]
   [link
@@ -58,19 +59,27 @@
    (-> (and/c circuit? constructive-circuit?)
        classical-circuit?)]
   [execute (->i ([c circuit?])
-                #:rest [inputs () (listof (listof (list/c variable/c (or/c 'true 'false))))]
+                #:rest [inputs () (listof (listof (list/c variable/c (or/c 'true 'false #f #t))))]
                 #:pre (c inputs)
                 (for/and ([i (in-list inputs)])
                   (equal? (list->set (map first i))
                           (list->set (circuit-inputs c))))
-                (listof (list/c variable/c any/c)))]
+                [_ (listof (listof (list/c variable/c any/c)))])]
   [assert-same (->i ([p circuit?]
                      [q (p) (and/c circuit? (same-circuit-as/c p))])
                     (#:constraints [c boolean-expression/c])
+                    #:pre
+                    (p q)
+                    (and (distinct? (circuit-inputs p) (circuit-outputs q))
+                         (distinct? (circuit-inputs q) (circuit-outputs p)))
                     any)]
   [verify-same (->i ([p circuit?]
                      [q (p) (and/c circuit? (same-circuit-as/c p))])
                     (#:constraints [c boolean-expression/c])
+                    #:pre
+                    (p q)
+                    (and (distinct? (circuit-inputs p) (circuit-outputs q))
+                         (distinct? (circuit-inputs q) (circuit-outputs p)))
                     [_ (or/c unsat?
                              (list/c sat?
                                      (listof (listof (list/c variable/c any/c)))
