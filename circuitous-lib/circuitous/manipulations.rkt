@@ -163,8 +163,8 @@
    #:outputs (convert-names (circuit-outputs P))
    (append-map
     (lambda (x)
-      (list (list `(+ ,(first x)) `(+ ,(first x)))
-            (list `(- ,(first x)) `(- ,(first x)))))
+      (list (list `(+ ,(first x)) `(+ ,(second x)))
+            (list `(- ,(first x)) `(- ,(second x)))))
     (circuit-reg-pairs P))
    (term (convert-P ,(circuit-term P)))))
     

@@ -32,7 +32,9 @@
     (for/list ([input (in-list inputs*)])
       (for/list ([i (in-list (sort input variable<? #:key first))])
         (list (first i)
-              (eq? (second i) 'true)))))
+              (if (symbol? (second i))
+                  (eq? (second i) 'true)
+                  (second i))))))
   (cond [(constructive-circuit? P)
          (log-circuit-eval-debug
           "evaling as a constructive circuit")

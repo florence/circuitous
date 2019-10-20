@@ -1,9 +1,26 @@
 #lang racket
 (require rackunit
          circuitous
+         circuitous/private/redex
+         redex/reduction-semantics
          (only-in circuitous/private/data
                   circuit-term
                   circuit-reg-pairs))
+
+(test-case "variable<? is actually a total ordering"
+
+  (check-true
+   (variable<? '(+ in) '(- in)))
+  (check-false
+   (variable<? '(- in) '(+ in)))
+
+  (redex-check
+   classical (a b)
+   (let ([a<b (variable<? (term a) (term b))]
+         [b<a (variable<? (term b) (term a))])
+     (if (equal? (term a) (term b))
+         (equal? a<b b<a)
+         (equal? a<b (not b<a))))))
 (test-case "contracts"
   (check-pred
    constructive-circuit?
@@ -138,18 +155,26 @@
     '(((+ c) true) ((- c) false)))
    (list (list '((+ c) #t) '((- c) #f)
                '((+ a) #t) '((- a) #f))))
-  #;
+  
   (check-equal?
    (execute
     (constructive->classical
      (make-circuit
       #:inputs '(b) #:outputs '(a out)
       (a = b)
-      (reg in out = a))
-     '((b true) (b false) (b false))))
-   (list (list '(b true) '(a true)
-               '(in true) '(out false))
-         (list '(b false) '(a false)
-               '(in false) '(out true))
-         (list '(b false) '(a false)
-               '(in false) '(out false)))))
+      (reg in out = a)))
+    '(((+ b) #t) ((- b) #f))
+    '(((+ b) #f) ((- b) #t))
+    '(((+ b) #f) ((- b) #t)))
+   (list (list  '((+ b) #t) '((- b) #f)
+                '((+ a) #t) '((- a) #f)
+                '((+ in) #t) '((- in) #f)
+                '((+ out) #f) '((- out) #t))
+         (list '((+ b) #f) '((- b) #t)
+               '((+ a) #f) '((- a) #t)
+               '((+ in) #f) '((- in) #t)
+               '((+ out) #t) '((- out) #f))
+         (list '((+ b) #f) '((- b) #t)
+               '((+ a) #f) '((- a) #t)
+               '((+ in) #f) '((- in) #t)
+               '((+ out) #f) '((- out) #t)))))

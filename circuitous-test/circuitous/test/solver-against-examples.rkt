@@ -347,7 +347,20 @@
                   (build-state* (convert* `((pre-out = false)))))
       (list (build-state* (convert* `((pre-out = false) (a = true) (o = true) (pre-in = true))))
             (build-state* (convert* `((pre-out = true) (a = false) (o = false) (pre-in = false))))
-            (build-state* (convert* `((pre-out = false) (a = ⊥) (o = ⊥) (pre-in = ⊥)))))))))
+            (build-state* (convert* `((pre-out = false) (a = ⊥) (o = ⊥) (pre-in = ⊥))))))))
+  (test-case "regression tests"
+    (check-equal?
+     (eval/multi*
+      (map (compose build-state* convert*)
+           `(((b = true))
+             ((b = false))
+             ((b = false))))
+      (convert `((a = b) (in = a)))
+      (convert* `((in = out))))
+     (map (compose build-state* convert*)
+          `(((b = true) (a = true) (in = true) (out = false))
+            ((b = false) (a = false) (in = false) (out = true))
+            ((b = false) (a = false) (in = false) (out = false)))))))
     
   
 (define-circuit-test-suite verify/multi
