@@ -251,7 +251,15 @@
     (define p2 (convert '((K0 = r0) (SEL = rsel))))
     (check-pred
      list?
-     (verify-same p1 p2))))
+     (verify-same p1 p2))
+
+    (check-pred
+     list?
+     (verify-same
+      #:outputs (convert-names '(O1 O2 O3))
+      (convert `((O1 = I1) (O2 = I2) (O3 = I3)))
+      (convert `((O3 = I3)))))))
+                
 
 (define-circuit-test-suite verify/multi-is-verify
   (check-pred

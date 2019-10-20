@@ -3,7 +3,12 @@
          redex/reduction-semantics
          "interp.rkt"
          "manipulations.rkt"
-         "private/data.rkt"
+         (only-in "private/data.rkt"
+                  circuit-domain
+                  circuit-inputs
+                  circuit-outputs
+                  circuit?
+                  variable<?)
          "private/redex.rkt"
          "private/contract.rkt"
          racket/set
@@ -20,11 +25,25 @@
         (#:constraints [e boolean-expression/c])
         #:rest [_ (c) (listof (type c))]
         [result circuit?]
-        #:post (c result) (assert-same c result #:constraints c))]))
-   
+        #:post (c result e) (assert-same c result
+                                         #:constraints
+                                         (if (equal? e the-unsupplied-arg)
+                                             'true
+                                             e)))]))
+
+(define (make-circuit #:inputs inputs
+                      #:outputs outputs
+                      #:register-pairs [reg-pairs empty]
+                      expr)
+  (apply make-circuitf
+         #:inputs inputs
+         #:outputs outputs
+         reg-pairs
+         expr))
+         
 
 (provide
- make-circuit
+ circuit
  unsat?
  sat?
  (contract-out
@@ -37,6 +56,12 @@
   [variable<? (-> variable/c variable/c boolean?)]
   [constructive-circuit? (-> circuit? any/c)]
   [classical-circuit? (-> circuit? any/c)]
+  [make-circuit
+   (->* (#:inputs (listof symbol?)
+         #:outputs (listof symbol?)
+         (listof (list/c symbol? '= boolean-expression/c)))
+        (#:register-pairs (listof (list/c symbol? symbol?)))
+        circuit?)]
   [link
    (->i ([a circuit?]
          #:with [b (a)

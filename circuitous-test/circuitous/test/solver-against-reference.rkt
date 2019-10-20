@@ -8,8 +8,6 @@
           circuitous/main
           [assert-same assert-same/smt])
          circuitous/private/redex
-         (only-in circuitous/manipulations
-                  make-circuitf)
          rackunit
          racket/random)
 
@@ -585,12 +583,12 @@
              (check ...
               (lambda ()
                 (assert-same/smt
-                 (make-circuit #:inputs '(a ...)
-                               #:outputs '(b ...)
-                               body1 ...)
-                 (make-circuit #:inputs '(a ...)
-                               #:outputs '(b ...)
-                               body2 ...)))))
+                 (circuit #:inputs (a ...)
+                          #:outputs (b ...)
+                          body1 ...)
+                 (circuit #:inputs (a ...)
+                          #:outputs (b ...)
+                          body2 ...)))))
          #,(syntax/loc this-syntax
              (check ...
               (lambda ()
@@ -602,13 +600,13 @@
               (lambda ()
                 (assert-same/smt
                  (constructive->classical
-                  (make-circuit #:inputs '(a ...)
-                                #:outputs '(b ...)
-                                body1 ...))
+                  (circuit #:inputs (a ...)
+                           #:outputs (b ...)
+                           body1 ...))
                  (constructive->classical
-                  (make-circuit #:inputs '(a ...)
-                                #:outputs '(b ...)
-                                body2 ...)))))))]))
+                  (circuit #:inputs (a ...)
+                           #:outputs (b ...)
+                           body2 ...)))))))]))
           
 
 (check-exn-against
@@ -682,9 +680,9 @@
 (test-case "pinning tests"
   (let ()
     (define p1
-      (make-circuit
-       #:inputs '(GO rsel)
-       #:outputs '(K0 SEL)
+      (circuit
+       #:inputs (GO rsel)
+       #:outputs (K0 SEL)
        (l0 = GO)
        (lsel = false)
        ;; SEL
@@ -697,9 +695,9 @@
        (rem = (and SEL (and RES (not rsel))))
        (both0 = (or l0 r0))))
     (define p2
-      (make-circuit
-       #:inputs '()
-       #:outputs '(K0 SEL)
+      (circuit
+       #:inputs ()
+       #:outputs (K0 SEL)
        (K0 = r0) (SEL = rsel)))
     (check-exn
      #rx"assert-same.*model"
@@ -751,61 +749,53 @@
        (check-exn
         #rx"assert-same.*model"
         (lambda ()
-          (assert-same/smt (apply
-                            make-circuitf
+          (assert-same/smt (make-circuit
                             #:inputs (term (FV ,P))
                             #:outputs (map first P)
-                            empty P)
-                           (apply
-                            make-circuitf
+                            P)
+                           (make-circuit
                             #:inputs '()
                             #:outputs (term (a)) 
-                            empty (term ((a = false)))))))
+                            (term ((a = false)))))))
        (check-exn
         #rx"assert-same.*model"
         (lambda ()
-          (assert-same/smt (apply
-                            make-circuitf
+          (assert-same/smt (make-circuit
                             #:inputs (term (FV ,P))
                             #:outputs (map first P)
-                            empty P)
-                           (apply
-                            make-circuitf
+                            P)
+                           (make-circuit
                             #:inputs '()
                             #:outputs (term (a)) 
-                            empty (term ((a = a)))))))
+                            (term ((a = a)))))))
        (check-exn
         #rx"assert-same.*model"
         (lambda ()
           (assert-same/smt
            (constructive->classical
-            (apply
-             make-circuitf
+            (make-circuit
              #:inputs (term (FV ,P))
              #:outputs (map first P)
-             empty P))
+             P))
            (constructive->classical
-            (apply
-             make-circuitf
+            (make-circuit
              #:inputs '()
              #:outputs (term (a)) 
-             empty (term ((a = false))))))))
+             (term ((a = false))))))))
        (check-exn
         #rx"assert-same.*model"
         (lambda ()
           (assert-same/smt
            (constructive->classical
-            (apply
-             make-circuitf
+            (make-circuit
              #:inputs (term (FV ,P))
              #:outputs (map first P)
-             empty P))
+             P))
            (constructive->classical
-            (apply
-             make-circuitf
+            (make-circuit
              #:inputs '()
              #:outputs (term (a)) 
-             empty (term ((a = a)))))))))))
+             (term ((a = a)))))))))))
  #:prepare limit-fvs)
 (redex-check
  constructive-test
@@ -815,29 +805,25 @@
      (check-not-exn
       (lambda ()
         (assert-same (term Pt) (term Pt))
-        (assert-same/smt (apply
-                          make-circuitf
+        (assert-same/smt (make-circuit
                           #:inputs (term (FV Pt))
                           #:outputs (map first (term Pt)) 
-                          empty (term Pt))
-                         (apply
-                          make-circuitf
+                          (term Pt))
+                         (make-circuit
                           #:inputs (term (FV Pt))
                           #:outputs (map first (term Pt)) 
-                          empty (term Pt)))
+                          (term Pt)))
         (assert-same/smt
          (constructive->classical
-          (apply
-           make-circuitf
+          (make-circuit
            #:inputs (term (FV Pt))
            #:outputs (map first (term Pt)) 
-           empty (term Pt)))
+           (term Pt)))
          (constructive->classical
-          (apply
-           make-circuitf
+          (make-circuit
            #:inputs (term (FV Pt))
            #:outputs (map first (term Pt)) 
-           empty (term Pt))))))))
+           (term Pt))))))))
  #:prepare limit-fvs)
 
 (redex-check
@@ -867,16 +853,14 @@
        (check-equal?
         (good (assert-same (term Pt_1) (term Pt_2)))
         (good (assert-same/smt
-               (apply
-                make-circuitf
+               (make-circuit
                 #:inputs (term (FV Pt_1))
                 #:outputs (map first (term Pt_1)) 
-                empty (term Pt_1))
-               (apply
-                make-circuitf
+                (term Pt_1))
+               (make-circuit
                 #:inputs (term (FV Pt_2))
                 #:outputs (map first (term Pt_2)) 
-                empty (term Pt_2))))))))
+                (term Pt_2))))))))
  #:prepare
  (lambda (x)
    (list (limit-fvs (first x) #:to 2)

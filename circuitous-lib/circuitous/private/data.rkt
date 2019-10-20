@@ -5,7 +5,8 @@
 (require racket/match
          racket/list)
 (struct circuit (outputs inputs reg-pairs term)
-  #:transparent)
+  #:transparent
+  #:constructor-name a-circuit)
 (define (circuit-domain c)
   (map first (circuit-term c)))
 (define (variable<? x y)

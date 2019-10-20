@@ -270,8 +270,8 @@
       [`(implies ,e1 ,e2)
        (f-implies (build-expression e1)
                   (build-expression e2))]
-      [`true (lambda (_) #t)]
-      [`false (lambda (_) #f)]
+      [(or #t `true) (lambda (_) #t)]
+      [(or #f `false) (lambda (_) #f)]
       [`⊥ (lambda (_) '⊥)]
       [x
        (lambda (w) (deref w x))]))

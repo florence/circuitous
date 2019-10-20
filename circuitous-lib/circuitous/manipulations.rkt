@@ -1,5 +1,5 @@
 #lang racket/base
-(provide make-circuit
+(provide circuit
          link
          propagate&remove
          propagate
@@ -59,28 +59,28 @@
              #:attr term
              #'(not a.term))))
 
-(define-syntax make-circuit
+(define-syntax circuit
   (syntax-parser
-    [(_ (~alt (~once (~seq #:inputs inputs))
-              (~once (~seq #:outputs outputs)))
+    [(_ (~alt (~once (~seq #:inputs (inputs:id ...)))
+              (~once (~seq #:outputs (outputs:id ...))))
         ...
         p:bool-equation ...)
      #:fail-when (not (equal? (syntax->datum #'(p.lhs ...))
                               (remove-duplicates (syntax->datum #'(p.lhs ...)))))
      "duplicate wire name"
      #'(apply make-circuitf
-              #:inputs inputs
-              #:outputs outputs
+              #:inputs '(inputs ...)
+              #:outputs '(outputs ...)
               (equations p ...))]))
 
 (define (make-circuitf #:inputs inputs
-                       #:outputs outputs
-                       reg-pairs
-                       . expr)
-  (circuit (sort outputs variable<?)
-           (sort inputs variable<?)
-           (sort reg-pairs variable<? #:key first)
-           (sort expr variable<? #:key first)))
+                      #:outputs outputs
+                      reg-pairs
+                      . expr)
+  (a-circuit (sort outputs variable<?)
+             (sort inputs variable<?)
+             (sort reg-pairs variable<? #:key first)
+             (sort expr variable<? #:key first)))
 
 (define-syntax equations
   (syntax-parser
@@ -152,7 +152,7 @@
    #:inputs (circuit-inputs P)
    #:outputs (circuit-outputs P)
    (circuit-reg-pairs P)
-   (term (replace* P ,@ps))))
+   (term (replace* ,(circuit-term P) ,@ps))))
 
 (define (constructive->classical P)
   (define (convert-names x)
