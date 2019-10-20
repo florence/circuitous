@@ -60,6 +60,17 @@
     #:outputs (O1 O2 O3)
     (O1 = I2)
     (O2 = I2)
-    (O3 = I3)))   
+    (O3 = I3)))
+  (expect-failure
+   (rename id '(I1 I2)))
+  (check-equal?
+   (rename id '(I1 I2)
+           #:constraints '(or (and I1 I2) (and (not I1) (not I2))))
+   (circuit
+    #:inputs (I2 I3)
+    #:outputs (O1 O2 O3)
+    (O1 = I2)
+    (O2 = I2)
+    (O3 = I3)))
    
   )

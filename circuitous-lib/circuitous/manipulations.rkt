@@ -65,8 +65,13 @@
               (~once (~seq #:outputs (outputs:id ...))))
         ...
         p:bool-equation ...)
-     #:fail-when (not (equal? (syntax->datum #'(p.lhs ...))
-                              (remove-duplicates (syntax->datum #'(p.lhs ...)))))
+     #:fail-when
+     (or (not (equal? (syntax->datum #'(p.lhs ...))
+                      (remove-duplicates (syntax->datum #'(p.lhs ...)))))
+         (not (equal? (syntax->datum #'(inputs ...))
+                      (remove-duplicates (syntax->datum #'(inputs ...)))))
+         (not (equal? (syntax->datum #'(outputs ...))
+                      (remove-duplicates (syntax->datum #'(outputs ...))))))
      "duplicate wire name"
      #'(apply make-circuitf
               #:inputs '(inputs ...)
@@ -139,8 +144,8 @@
                 . a)
   (apply
    make-circuitf
-   #:inputs (term (replace-p* ,(circuit-inputs P) ,@a))
-   #:outputs (term (replace-p* ,(circuit-outputs P) ,@a))
+   #:inputs (remove-duplicates (term (replace-p* ,(circuit-inputs P) ,@a)))
+   #:outputs (remove-duplicates (term (replace-p* ,(circuit-outputs P) ,@a)))
    (flatten (circuit-reg-pairs P))
    (term (rename** ,(circuit-term P) ,@a))))
 
