@@ -195,7 +195,7 @@
   rename*/freshen : ((a b) ...) P (a b) ... P -> (((a b) ...) P)
   [(rename*/freshen ((a_reg b_reg) ...) P (a b) ... P_i)
    (((a_regv b_regv) ...)
-    (rename* P
+    (rename** P
              (a b) ...
              (a_v b_v) ...))
    (where (a_v ...)
@@ -207,16 +207,16 @@
             (term (b ... P_i))
             (term (a_v ...))))
    (where ((a_regv = b_regv) ...)
-          (rename* ((a_reg = b_reg) ...)
-                   (a b) ...
-                   (a_v b_v) ...)) ])
+          (rename** ((a_reg = b_reg) ...)
+                    (a b) ...
+                    (a_v b_v) ...)) ])
                              
   
 
 
 (define-metafunction classical
   variables : P -> (a ...)
-  [(variables (a = p) ...)
+  [(variables ((a = p) ...))
    ,(remove-duplicates (term (a ... b ... ...)))
    (where ((b ...) ...)
           ((vars-p p) ...))])

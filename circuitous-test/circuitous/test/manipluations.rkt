@@ -71,6 +71,48 @@
     #:outputs (O1 O2 O3)
     (O1 = I2)
     (O2 = I2)
-    (O3 = I3)))
-   
-  )
+    (O3 = I3))))
+
+(test-case "1"
+  (define one
+    (circuit
+     #:inputs ()
+     #:outputs (one)
+     (one = true)))
+  (check-equal?
+   (replace one `(true (or true false)))
+   (circuit
+     #:inputs ()
+     #:outputs (one)
+     (one = (or #t false)))))
+
+(test-case "link with example safe esterel context"
+  (define safe-context
+    (circuit
+      #:inputs (GO KILL SUSP RES in-sel)
+      #:outputs (SEL K0 K1)
+      (SEL = in-sel)
+      (safe-go = (and GO (not SEL)))))
+  (define (safe l)
+    (link
+     safe-context
+     #:with l
+     #:inputs '((GO safe-go) (KILL KILL) (SUSP SUSP) (RES RES))
+     #:outputs '((SEL safe-sel) (K0 K0) (K1 K1))))
+  (define pause
+    (circuit
+     #:inputs (GO RES SUSP KILL)
+     #:outputs (K0 K1 SEL)
+     (reg in SEL = (and (not KILL) do-sel))
+     (K0 = (and SEL RES))
+     (K1 = GO)
+     (do-sel = (or GO do-susp))
+     (do-susp = (and SUSP SEL))))
+  (check-pred
+   unsat?
+   (verify-same
+    #:constraints '(implies SEL (not GO))
+    pause
+    (safe pause))))
+     
+     

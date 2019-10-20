@@ -6,6 +6,7 @@
  same-circuit-as/c
  variable/c
  boolean-expression/c
+ extended-boolean-expression/c
  distinct?)
 (require "redex.rkt" "data.rkt"
          redex/reduction-semantics
@@ -29,16 +30,25 @@
          (list/c '+ symbol?)
          (list/c '- symbol?))))
 
-(define boolean-expression/c
-  (flat-named-contract
-   "boolean-expression/c"
-   (recursive-contract
-    (or/c variable/c
-          #f #t
-          (list/c 'and boolean-expression/c boolean-expression/c)
-          (list/c 'or boolean-expression/c boolean-expression/c)
-          (list/c 'not boolean-expression/c))
-    #:flat)))
+(define (make-boolean-expression/c x)
+  (define y
+    (flat-named-contract
+     "boolean-expression/c"
+     (recursive-contract
+      (or/c variable/c
+            (x y)
+            #f #t
+            (list/c 'and boolean-expression/c boolean-expression/c)
+            (list/c 'or boolean-expression/c boolean-expression/c)
+            (list/c 'not boolean-expression/c))
+      #:flat)))
+  y)
+
+(define boolean-expression/c (make-boolean-expression/c (lambda (_) none/c)))
+(define extended-boolean-expression/c
+  (make-boolean-expression/c
+   (lambda (x)
+     (list/c 'implies x x))))
 
 (define (distinct? a b)
   (equal? (set) (set-intersect (list->set a) (list->set b))))

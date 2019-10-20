@@ -1,8 +1,7 @@
 #lang rosette/safe
 (provide
  outputs=? deref contains?
- next-unique!
- term->expr)
+ next-unique!)
 (require (only-in racket/base error make-hasheq hash-ref hash-set! box set-box!)
          racket/match)
 
@@ -35,42 +34,3 @@
 (define (next-unique! x)
   (hash-update! counter x add1 (lambda () -1))
   (hash-ref counter x))
-
-(define (term->expr x)
-  (define seen (make-hasheq))
-  (define (add! x f)
-    (define b (box 'unset))
-    (hash-set! seen x b)
-    (define val (f))
-    (set-box! b val)
-    val)
-  (define (term->expr x)
-    (cond
-      [(hash-ref seen x #f)
-       (hash-ref seen x)]
-      [(union? x)
-       (add!
-        x
-        (lambda ()
-          (let loop ([x (union-contents x)])
-            (cond [(empty? x) "undefined"]
-                  [(empty? (rest x))
-                   (term->expr (cdr (first x)))]
-                  [else
-                   `(if ,(term->expr (car (first x)))
-                        ,(term->expr (cdr (first x)))
-                        ,(loop (rest x)))]))))]
-      [else
-       (add!
-        x
-        (lambda ()
-          (match x
-            [(term content _)
-             (term->expr content)]
-            [(expression op child ...)
-             (cons op (map term->expr child))]
-            [(constant id _) id]
-            [(list y ...)
-             (map term->expr y)]
-            [y y])))]))
-  (term->expr x))

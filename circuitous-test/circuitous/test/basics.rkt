@@ -5,8 +5,34 @@
          redex/reduction-semantics
          (only-in circuitous/private/data
                   circuit-term
-                  circuit-reg-pairs))
+                  circuit-reg-pairs)
+         syntax/macro-testing)
 
+(test-case "checking"
+  (check-exn
+   #rx"b: unbound identifier"
+   (lambda ()
+     (convert-compile-time-error
+      (circuit
+       #:inputs ()
+       #:outputs ()
+       (a = b)))))
+  (check-exn
+   #rx"b: unbound identifier"
+   (lambda ()
+     (define b #f)
+     (convert-compile-time-error
+      (circuit
+       #:inputs ()
+       #:outputs ()
+       (a = b)))))
+  (check-exn
+   #rx"duplicate binding"
+   (lambda ()
+     (convert-compile-time-error
+      (circuit
+       #:inputs (a) #:outputs (c)
+       (a = b) (b = c))))))
 (test-case "variable<? is actually a total ordering"
 
   (check-true
@@ -25,18 +51,18 @@
   (check-pred
    constructive-circuit?
    (circuit
-    #:inputs (a) #:outputs (c)
+    #:inputs (c) #:outputs (a)
     (a = b) (b = c)))
   (check-pred
    constructive-circuit?
    (circuit
-    #:inputs (a) #:outputs (c)
+    #:inputs (c) #:outputs (a)
     (a = c)))
   (check-pred
    classical-circuit?
    (constructive->classical
     (circuit
-     #:inputs (a) #:outputs (c)
+     #:inputs (c) #:outputs (a)
      (a = c)))))
 
 (test-case "verification"
@@ -45,11 +71,11 @@
    (verify-same
     (circuit
      #:inputs ()
-     #:outputs (a) 
+     #:outputs () 
      (a = (and a a)))
     (circuit
-     #:inputs (b)
-     #:outputs (a) 
+     #:inputs (a)
+     #:outputs (b) 
      (b = (and a a)))))
   (check-pred
    list?

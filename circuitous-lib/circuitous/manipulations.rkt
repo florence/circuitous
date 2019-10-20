@@ -22,23 +22,23 @@
 (begin-for-syntax
   (define-syntax-class bool-equation
     #:datum-literals (=)
-    #:attributes (splice-term reg-pairs lhs)
+    #:attributes (splice-term reg-pairs lhs [binders 1])
     (pattern (a:id = b:bool-expr)
              #:attr splice-term
-             #''((a = b.term))
+             #'`((a = b.term))
              #:attr reg-pairs #''()
-             #:attr lhs #'a)
+             #:attr lhs #'a
+             #:attr (binders 1) (list #'a))
     (pattern (reg in:id out:id = b:bool-expr)
              #:attr splice-term
-             #''((in = b.term))
+             #'`((in = b.term))
              #:attr reg-pairs
-             #''((in out))
-             #:attr lhs #'in))
+             #'`((in out))
+             #:attr lhs #'in
+             #:attr (binders 1) (list #'in #'out)))
   (define-syntax-class bool-expr
     #:datum-literals (and or not true false ⊥ reg)
     #:attributes (term)
-    (pattern name:id
-             #:attr term #'name)
     (pattern true
              #:attr term #'true)
     (pattern false
@@ -49,6 +49,8 @@
              #:attr term #'false)
     (pattern ⊥
              #:attr term #'⊥)
+    (pattern name:id
+             #:attr term #`,name)
     (pattern (and a:bool-expr b:bool-expr)
              #:attr term
              #'(and a.term b.term))
@@ -73,14 +75,19 @@
          (not (equal? (syntax->datum #'(outputs ...))
                       (remove-duplicates (syntax->datum #'(outputs ...))))))
      "duplicate wire name"
-     #'(apply make-circuitf
-              #:inputs '(inputs ...)
-              #:outputs '(outputs ...)
-              (equations p ...))]))
+     (define d (make-syntax-delta-introducer this-syntax #'here))
+     
+     #`(let ()
+         #,@(d #'((define p.binders 'p.binders) ... ...) 'remove)
+         #,@(d #'((define inputs 'inputs) ...) 'remove)
+         (apply make-circuitf
+                #:inputs '(inputs ...)
+                #:outputs '(outputs ...)
+                #,(d #'(equations p ...) 'remove)))]))
 
 (define (make-circuitf #:inputs inputs
-                      #:outputs outputs
-                      reg-pairs
+                       #:outputs outputs
+                       reg-pairs
                       . expr)
   (a-circuit (sort outputs variable<?)
              (sort inputs variable<?)

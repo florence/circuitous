@@ -22,7 +22,7 @@
     [(_ type)
      #'(->i
         ([c circuit?])
-        (#:constraints [e boolean-expression/c])
+        (#:constraints [e extended-boolean-expression/c])
         #:rest [_ (c) (listof (type c))]
         [result circuit?]
         #:post (c result e) (assert-same c result
@@ -69,8 +69,8 @@
          #:inputs [inputs (listof (list/c variable/c variable/c))]
          #:outputs [outputs (listof (list/c variable/c variable/c))])
         #:pre (a b inputs outputs)
-        (and (subset? (list->set (circuit-inputs b)) (list->set (map second inputs)))
-             (subset? (list->set (circuit-outputs b)) (list->set (map second outputs))))
+        (and (subset? (list->set (circuit-inputs b)) (list->set (map first inputs)))
+             (subset? (list->set (circuit-outputs b)) (list->set (map first outputs))))
         [res (a)
              (and/c circuit? (same-circuit-as/c a))])]
   [propagate&remove
@@ -99,7 +99,7 @@
                 [_ (listof (listof (list/c variable/c any/c)))])]
   [assert-same (->i ([p circuit?]
                      [q (p) (and/c circuit? (same-circuit-as/c p))])
-                    (#:constraints [c boolean-expression/c])
+                    (#:constraints [c extended-boolean-expression/c])
                     #:pre
                     (p q)
                     (and (distinct? (circuit-inputs p) (circuit-outputs q))
@@ -107,7 +107,7 @@
                     any)]
   [verify-same (->i ([p circuit?]
                      [q (p) (and/c circuit? (same-circuit-as/c p))])
-                    (#:constraints [c boolean-expression/c])
+                    (#:constraints [c extended-boolean-expression/c])
                     #:pre
                     (p q)
                     (and (distinct? (circuit-inputs p) (circuit-outputs q))

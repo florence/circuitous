@@ -56,6 +56,7 @@
                 [states states])
        (log-circuit-eval-debug "states: ~a" (pretty-format states))
        (log-circuit-eval-debug "seen: ~a" (pretty-format seen))
+       (log-circuit-eval-debug "registers: ~a" out-registers)
        (cond
          [(empty? states) seen]
          [else

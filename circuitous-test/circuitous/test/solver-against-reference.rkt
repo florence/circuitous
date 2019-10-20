@@ -681,7 +681,7 @@
   (let ()
     (define p1
       (circuit
-       #:inputs (GO rsel)
+       #:inputs (GO rsel r0 RES)
        #:outputs (K0 SEL)
        (l0 = GO)
        (lsel = false)
@@ -696,7 +696,7 @@
        (both0 = (or l0 r0))))
     (define p2
       (circuit
-       #:inputs ()
+       #:inputs (r0 rsel)
        #:outputs (K0 SEL)
        (K0 = r0) (SEL = rsel)))
     (check-exn
