@@ -238,3 +238,47 @@
                '((+ a) #f) '((- a) #t)
                '((+ in) #f) '((- in) #t)
                '((+ out) #f) '((- out) #t)))))
+
+
+(test-case "regression test from esterel compiler+Can+registers"
+  (define p
+    (circuit
+     #:inputs (GO SUSP RES KILL)
+     #:outputs (K0 K1 S1 SEL)
+     (K0 = K0-internal)
+     (K0-internal = (and reg-out RES))
+     (K0-internal1 = (or then else))
+     (K1 = K0-internal1)
+     (S1 = then)
+     (S3 = K0-internal)
+     (SEL = (or (or false false) reg-out))
+     (do-sel = (or K0-internal1 resel))
+     (else = (and GO (not S3)))
+     (reg reg-in reg-out = (and (not KILL) do-sel))
+     (resel = (and SUSP SEL))
+     (then = (and GO S3))))
+  (define q
+    (circuit
+     #:inputs (GO SUSP RES KILL)
+     #:outputs (K0 K1 SEL)
+     (K0 = K0-internal)
+     (K0-internal = (and reg-out RES))
+     (K0-internal1 = GO)
+     (K1 = K0-internal1)
+     (S1 = K0-internal)
+     (SEL = reg-out)
+     (do-sel = (or K0-internal1 resel))
+     (reg reg-in reg-out = (and (not KILL) do-sel))
+     (resel = (and SUSP SEL))))
+  (check-pred
+   list?
+   (verify-same
+    #:extra-outputs '(K2)
+    p q))
+  (check-pred
+   unsat?
+   (verify-same
+    #:extra-outputs '(K2)
+    #:constraints (term (implies SEL (not GO)))
+    p q)))
+  
