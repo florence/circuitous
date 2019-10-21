@@ -50,11 +50,13 @@
           (circuit-term P)
           (circuit-reg-pairs P))]))
 
-(define (verify-same P1 P2 #:constraints [constraints `true])
+(define (verify-same P1 P2
+                     #:constraints [constraints `true]
+                     #:extra-outputs [extra-outputs empty])
   (define register-pairs1 (circuit-reg-pairs P1))
   (define register-pairs2 (circuit-reg-pairs P2))
   (define outputs
-    (remove-duplicates (append (circuit-outputs P1) (circuit-outputs P2))))
+    (remove-duplicates (append extra-outputs (circuit-outputs P1) (circuit-outputs P2))))
   (cond [(constructive-circuit? P1)
          (log-circuit-solver-debug
           "solving as a constructive circuit")
@@ -72,9 +74,13 @@
                               #:constraints constraints
                               #:outputs outputs)]))
 
-(define (assert-same p q #:constraints [constraints `true])
+(define (assert-same p q
+                     #:constraints [constraints `true]
+                     #:extra-outputs [extra-outputs empty])
   (define x
-    (verify-same p q #:constraints constraints))
+    (verify-same p q
+                 #:constraints constraints
+                 #:extra-outputs empty))
   (unless (unsat? x)
     (match-define (list sat p1 q1) x)
     (define the-diff

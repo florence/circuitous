@@ -7,6 +7,7 @@
                   circuit-domain
                   circuit-inputs
                   circuit-outputs
+                  circuit-term
                   circuit?
                   variable<?)
          "private/redex.rkt"
@@ -16,19 +17,17 @@
          (only-in rosette unsat? sat?)
          (for-syntax syntax/parse racket/base))
 
-(define-syntax transformer-over/c
-  (syntax-parser
-    [(_ type)
-     #'(->i
-        ([c circuit?])
-        (#:constraints [e extended-boolean-expression/c])
-        #:rest [_ (c) (listof (type c))]
-        [result circuit?]
-        #:post (c result e) (assert-same c result
-                                         #:constraints
-                                         (if (equal? e the-unsupplied-arg)
-                                             'true
-                                             e)))]))
+(define (transformer-over/c type)
+  (->i
+   ([c circuit?])
+   (#:constraints [e extended-boolean-expression/c])
+   #:rest [_ (c) (listof (type c))]
+   [result circuit?]
+   #:post (c result e) (assert-same c result
+                                    #:constraints
+                                    (if (equal? e the-unsupplied-arg)
+                                        'true
+                                        e))))
 
 (define (make-circuit #:inputs inputs
                       #:outputs outputs
@@ -52,6 +51,7 @@
   [circuit-inputs (-> circuit? (listof variable/c))]
   [circuit-outputs (-> circuit? (listof variable/c))]
   [circuit-domain (-> circuit? (listof variable/c))]
+  [circuit-term (-> circuit? (listof (list/c variable/c '= boolean-expression/c)))]
   [variable<? (-> variable/c variable/c boolean?)]
   [constructive-circuit? (-> circuit? any/c)]
   [classical-circuit? (-> circuit? any/c)]
@@ -98,7 +98,8 @@
                 [_ (listof (listof (list/c variable/c any/c)))])]
   [assert-same (->i ([p circuit?]
                      [q (p) (and/c circuit? (same-circuit-as/c p))])
-                    (#:constraints [c extended-boolean-expression/c])
+                    (#:constraints [c extended-boolean-expression/c]
+                     #:extra-outputs [_ (listof variable/c)])
                     #:pre
                     (p q)
                     (and (distinct? (circuit-inputs p) (circuit-outputs q))
@@ -106,7 +107,8 @@
                     any)]
   [verify-same (->i ([p circuit?]
                      [q (p) (and/c circuit? (same-circuit-as/c p))])
-                    (#:constraints [c extended-boolean-expression/c])
+                    (#:constraints [c extended-boolean-expression/c]
+                     #:extra-outputs [_ (listof variable/c)])
                     #:pre
                     (p q)
                     (and (distinct? (circuit-inputs p) (circuit-outputs q))

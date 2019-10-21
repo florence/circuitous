@@ -4,7 +4,6 @@
          circuitous/private/redex
          redex/reduction-semantics
          (only-in circuitous/private/data
-                  circuit-term
                   circuit-reg-pairs)
          syntax/macro-testing)
 
