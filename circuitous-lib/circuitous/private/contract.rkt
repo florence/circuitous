@@ -21,7 +21,9 @@
 (define (classical-circuit? P)
   (redex-match? classical P (circuit-term P)))
 (define (same-circuit-as/c a)
-  (if (classical-circuit? a) classical-circuit? constructive-circuit?))
+  (cond [(constructive-circuit? a) constructive-circuit?]
+        [(classical-circuit? a) classical-circuit?]
+        [else (error "malformed circuit while checking for circuit type")]))
 
 (define variable/c
   (flat-named-contract

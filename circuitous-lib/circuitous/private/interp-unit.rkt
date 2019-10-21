@@ -6,7 +6,6 @@
          racket/unit
          racket/match
          (for-syntax syntax/parse)
-         (only-in "redex.rkt" rename-internals)
          (only-in racket/base error
                   define-logger))
 (define-logger circuit-solver)
@@ -96,14 +95,11 @@
            (and (result=? (first a) (first b) #:outputs (or outputs #f))
                 (andmap (rest a) (rest b)))))))
 
-  (define (verify-same P1* P2*
+  (define (verify-same P1 P2
                        #:register-pairs1 [register-pairs1 #f]
                        #:register-pairs2 [register-pairs2 #f]
                        #:constraints [extra-constraints 'true]
                        #:outputs [outputs #f])
-    (define P1::P2 (rename-internals P1* P2*))
-    (define P1 (first P1::P2))
-    (define P2 (second P1::P2))
     (cond
       [(and register-pairs1 register-pairs2)
        (verify-same/multi P1 P2

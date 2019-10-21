@@ -196,8 +196,8 @@
   [(rename*/freshen ((a_reg b_reg) ...) P (a b) ... P_i)
    (((a_regv b_regv) ...)
     (rename** P
-             (a b) ...
-             (a_v b_v) ...))
+              (a b) ...
+              (a_v b_v) ...))
    (where (a_v ...)
           ,(remove*
             (term (a ...))
@@ -249,6 +249,11 @@
           ((vars-class p) ...))])
 
 (define-metafunction constructive
+  all-vars-con : P -> (a ...)
+  [(all-vars-con ((a = p) ...))
+   ,(remove-duplicates (term (a ... b ... ...)))
+   (where ((b ...) ...) ((vars-con p) ...))])
+(define-metafunction constructive
   vars-con : p -> (a ...)
   [(vars-con (and p q))
    (a ... b ...)
@@ -261,6 +266,11 @@
   [(vars-con (not p)) (vars-con p)]
   [(vars-con a) (a)]
   [(vars-con const) ()])
+(define-metafunction classical
+  all-vars-class : P -> (a ...)
+  [(all-vars-class ((a = p) ...))
+   ,(remove-duplicates (term (a ... b ... ...)))
+   (where ((b ...) ...) ((vars-class p) ...))])
 (define-metafunction classical
   vars-class : p -> (a ...)
   [(vars-class (and p q))
@@ -275,37 +285,65 @@
   [(vars-class a) (a)]
   [(vars-class const) ()])
 
-(define (rename-internals P1 P2)
+;; rename any internal wires in each circuit that would
+;; conflict with the other circuit to a new name not in either circuit
+;; expects the interfaces to be deduplicated already
+(define (rename-internals P1 P2
+                          #:c1-interface c1i
+                          #:c2-interface c2i)
   (cond
     [(redex-match? constructive P P1)
-     (define fv-P1* (term (FV-con ,P1))) 
-     (define fv-P2* (term (FV-con ,P2)))
-     (define fv-P1 (remove* fv-P2* fv-P1*))
-     (define fv-P2 (remove* fv-P1* fv-P2*))
-     (list (term (freshen-names-con ,P1 ,fv-P2))
-           (term (freshen-names-con ,P2 ,fv-P1)))]
+     (define P1-unsafe-internals (remove* c1i (term (all-vars-con ,P2))))
+     (define P2-unsafe-internals (remove* c2i (term (all-vars-con ,P1))))
+     (list (term (freshen-names-con ,P1 ,P1-unsafe-internals ,(append c2i P2)))
+           (term (freshen-names-con ,P2 ,P2-unsafe-internals ,(append c1i P1))))]
     [else
-     (define fv-P1* (term (FV-class ,P1))) 
-     (define fv-P2* (term (FV-class ,P2)))
-     (define fv-P1 (remove* fv-P2* fv-P1*))
-     (define fv-P2 (remove* fv-P1* fv-P2*))
-     (list (term (freshen-names-class ,P1 ,fv-P2))
-           (term (freshen-names-class ,P2 ,fv-P1)))]))
+     (define P1-unsafe-internals (remove* c1i (term (all-vars-class ,P2))))
+     (define P2-unsafe-internals (remove* c2i (term (all-vars-class ,P1))))
+     (list (term (freshen-names-class ,P1 ,P1-unsafe-internals ,(append c2i P2)))
+           (term (freshen-names-class ,P2 ,P2-unsafe-internals ,(append c1i P1))))]))
 
+(module+ test
+  (check-equal?
+   (rename-internals
+    (term ((a = (and a a))))
+    (term ((b = (and a a))))
+    #:c1-interface empty
+    #:c2-interface (term (a b)))
+   (term
+    (((a1 = (and a1 a1)))
+     ((b = (and a a))))))
+  (check-equal?
+   (rename-internals
+    (term (((+ a) = (and (+ a) (+ a)))
+           ((- a) = (or (- a) (- a)))))
+    (term (((+ b) = (and (+ a) (+ a)))
+           ((- b) = (or (- a) (- a)))))
+    #:c1-interface empty
+    #:c2-interface (term ((+ a) (- a) (+ b) (- b))))
+   (list
+    (term (((+ a1) = (and (+ a1) (+ a1)))
+           ((- a1) = (or (- a1) (- a1)))))
+    (term (((+ b) = (and (+ a) (+ a)))
+           ((- b) = (or (- a) (- a))))))))
+    
+
+
+;; rename everything in the given variable set to a fresh name
 (define-metafunction constructive
-  [(freshen-names-con P (a ...))
+  [(freshen-names-con P (a ...) any)
    (rename** P
-            ,@(map (lambda (x) (list x (variable-not-in (term (P a ...)) x)))
-                   (term (a ...))))])
+             ,@(map (lambda (x) (list x (variable-not-in (term (P any a ...)) x)))
+                    (term (a ...))))])
 
 (define-metafunction classical
-  [(freshen-names-class P ()) P]
-  [(freshen-names-class P (a* a ...))
-   (rename** P_r (a* ,(variable-not-in (term (P_r a ...)) (term a*))))
-   (where P_r (freshen-names-class P (a ...)))]
-  [(freshen-names-class P ((ann a*) a ... (ann_2 a*) b ...))
+  [(freshen-names-class P () any) P]
+  [(freshen-names-class P (a* a ...) any)
+   (rename** P_r (a* ,(variable-not-in (term (P_r any a ...)) (term a*))))
+   (where P_r (freshen-names-class P (a ...) any))]
+  [(freshen-names-class P ((ann a*) a ... (ann_2 a*) b ...) any)
    (rename** P_r ((ann a*) (ann b*)) ((ann_2 a*) (ann_2 b*)))
-   (where P_r (freshen-names-class P (a ... b ...)))
-   (where b* ,(variable-not-in (term (P_r a ... b ...)) (term a*)))])
+   (where P_r (freshen-names-class P (a ... b ...) any))
+   (where b* ,(variable-not-in (term (P_r any a ... b ...)) (term a*)))])
   
   

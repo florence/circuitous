@@ -64,7 +64,7 @@
      #:inputs (c) #:outputs (a)
      (a = c)))))
 
-(test-case "verification"
+(test-case "verification"   
   (check-pred
    list?
    (verify-same
@@ -110,7 +110,28 @@
      #:inputs (I1 I2 I3)
      #:outputs (O3)
      (O3 = I3)))))
-   
+
+(test-case "verification works when an internal wire name matches an interface name"
+  (check-pred
+   unsat?
+   (verify-same
+    (circuit
+     #:inputs () #:outputs (a)
+     (a = false))
+    (circuit
+     #:inputs () #:outputs ()
+     (a = true))))
+  (check-pred
+   unsat?
+   (verify-same
+    (circuit
+     #:inputs (i) #:outputs (o)
+     (o = (and false i)))
+    (circuit
+     #:inputs () #:outputs (o)
+     (i = false)
+     (o = i)))))
+            
 (test-case "construction"
   (check-equal?
    (circuit-reg-pairs

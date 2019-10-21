@@ -11,6 +11,7 @@
   "private/shared.rkt"
   "private/data.rkt"
   "private/contract.rkt"
+  (only-in "private/redex.rkt" rename-internals)
   racket/unit
   racket/list
   (only-in rosette unsat?)
@@ -35,20 +36,17 @@
               (if (symbol? (second i))
                   (eq? (second i) 'true)
                   (second i))))))
-  (cond [(constructive-circuit? P)
-         (log-circuit-eval-debug
-          "evaling as a constructive circuit")
-         (three-valued:eval/multi*
-          inputs
-          (circuit-term P)
-          (circuit-reg-pairs P))]
-        [else
-         (log-circuit-eval-debug
-          "evaling as a classical circuit")
-         (pos-neg:eval/multi*
-          inputs
-          (circuit-term P)
-          (circuit-reg-pairs P))]))
+  (define evaluate
+    (cond [(constructive-circuit? P)
+           (log-circuit-eval-debug "evaling as a constructive circuit")
+           three-valued:eval/multi*]
+          [else
+           (log-circuit-eval-debug "evaling as a classical circuit")
+           pos-neg:eval/multi*]))
+  (evaluate
+   inputs
+   (circuit-term P)
+   (circuit-reg-pairs P)))
 
 (define (verify-same P1 P2
                      #:constraints [constraints `true]
@@ -57,22 +55,24 @@
   (define register-pairs2 (circuit-reg-pairs P2))
   (define outputs
     (remove-duplicates (append extra-outputs (circuit-outputs P1) (circuit-outputs P2))))
-  (cond [(constructive-circuit? P1)
-         (log-circuit-solver-debug
-          "solving as a constructive circuit")
-         (three-valued:verify-same (circuit-term P1) (circuit-term P2)
-                                   #:register-pairs1 register-pairs1
-                                   #:register-pairs2 register-pairs2
-                                   #:constraints constraints
-                                   #:outputs outputs)]
-        [else
-         (log-circuit-solver-debug
-          "solving as a classical circuit")
-         (pos-neg:verify-same (circuit-term P1) (circuit-term P2)
-                              #:register-pairs1 register-pairs1
-                              #:register-pairs2 register-pairs2
-                              #:constraints constraints
-                              #:outputs outputs)]))
+  (define solve 
+    (cond [(constructive-circuit? P1)
+           (log-circuit-solver-debug "solving as a constructive circuit")
+           three-valued:verify-same]
+          [else
+           (log-circuit-solver-debug "solving as a classical circuit")
+           pos-neg:verify-same]))
+  (define p1::p2
+    (rename-internals
+     (circuit-term P1)
+     (circuit-term P2)
+     #:c1-interface (append extra-outputs (circuit-inputs P1) (circuit-outputs P1))
+     #:c2-interface (append extra-outputs (circuit-inputs P2)  (circuit-outputs P2))))
+  (solve (first p1::p2) (second p1::p2)
+         #:register-pairs1 register-pairs1
+         #:register-pairs2 register-pairs2
+         #:constraints constraints
+         #:outputs outputs))
 
 (define (assert-same p q
                      #:constraints [constraints `true]

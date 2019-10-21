@@ -89,16 +89,16 @@
 (test-case "link with example safe esterel context"
   (define safe-context
     (circuit
-      #:inputs (GO KILL SUSP RES in-sel)
+      #:inputs (GO KILL SUSP RES unsafe-sel)
       #:outputs (SEL K0 K1)
-      (SEL = in-sel)
+      (SEL = unsafe-sel)
       (safe-go = (and GO (not SEL)))))
   (define (safe l)
     (link
      safe-context
      #:with l
      #:inputs '((GO safe-go) (KILL KILL) (SUSP SUSP) (RES RES))
-     #:outputs '((SEL safe-sel) (K0 K0) (K1 K1))))
+     #:outputs '((SEL unsafe-sel) (K0 K0) (K1 K1))))
   (define pause
     (circuit
      #:inputs (GO RES SUSP KILL)
