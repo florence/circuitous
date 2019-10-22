@@ -28,14 +28,19 @@
              #'`((a = b.term))
              #:attr reg-pairs #''()
              #:attr lhs #'a
-             #:attr (binders 1) (list #'a))
+             #:attr (binders 1)
+             (map
+              (lambda (x) (syntax-property x 'original-for-check-syntax #t))
+              (list #'a)))
     (pattern (reg in:id out:id = b:bool-expr)
              #:attr splice-term
              #'`((in = b.term))
              #:attr reg-pairs
              #'`((in out))
              #:attr lhs #'in
-             #:attr (binders 1) (list #'in #'out)))
+             #:attr (binders 1)
+             (map (lambda (x) (syntax-property x 'original-for-check-syntax #t))
+                  (list #'in #'out))))
   (define-syntax-class bool-expr
     #:datum-literals (and or not true false ⊥ reg)
     #:attributes (term)
@@ -50,7 +55,7 @@
     (pattern ⊥
              #:attr term #'⊥)
     (pattern name:id
-             #:attr term #`,name)
+             #:attr term #`,#,(syntax-property #'name 'original-for-check-syntax #t))
     (pattern (and a:bool-expr b:bool-expr)
              #:attr term
              #'(and a.term b.term))
@@ -75,11 +80,14 @@
          (not (equal? (syntax->datum #'(outputs ...))
                       (remove-duplicates (syntax->datum #'(outputs ...))))))
      "duplicate wire name"
+     #:with (inputs* ...)
+     (map (lambda (x) (syntax-property x 'original-for-check-syntax #t))
+          (syntax->list #'(inputs ...)))
      (define d (make-syntax-delta-introducer this-syntax #'here))
      
      #`(let ()
          #,@(d #'((define p.binders 'p.binders) ... ...) 'remove)
-         #,@(d #'((define inputs 'inputs) ...) 'remove)
+         #,@(d #'((define inputs* 'inputs) ...) 'remove)
          (apply make-circuitf
                 #:inputs '(inputs ...)
                 #:outputs '(outputs ...)
