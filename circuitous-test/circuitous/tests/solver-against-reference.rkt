@@ -6,7 +6,8 @@
          racket/hash
          (rename-in
           circuitous/main
-          [assert-same assert-same/smt])
+          [assert-same assert-same/smt]
+          [FV whatever])
          circuitous/private/redex
          rackunit
          racket/random)

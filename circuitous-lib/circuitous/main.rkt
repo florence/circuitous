@@ -10,7 +10,7 @@
                   circuit-term
                   circuit?
                   variable<?)
-         "private/redex.rkt"
+         (except-in "private/redex.rkt" FV)
          "private/contract.rkt"
          racket/set
          racket/list 
@@ -22,6 +22,9 @@
    ([c circuit?])
    (#:constraints [e extended-boolean-expression/c])
    #:rest [_ (c) (listof (type c))]
+   #:pre (c e)
+   (or (equal? e the-unsupplied-arg)
+       (subset? (FV e) (list->set (append (circuit-inputs c) (circuit-outputs c)))))
    [result circuit?]
    #:post (c result e) (assert-same c result
                                     #:constraints
@@ -55,6 +58,7 @@
   [variable<? (-> variable/c variable/c boolean?)]
   [constructive-circuit? (-> circuit? any/c)]
   [classical-circuit? (-> circuit? any/c)]
+  [FV (-> extended-boolean-expression/c (set/c variable/c))]
   [make-circuit
    (->* (#:inputs (listof symbol?)
          #:outputs (listof symbol?)
@@ -90,7 +94,11 @@
    (-> (and/c circuit? constructive-circuit?)
        classical-circuit?)]
   [execute (->i ([c circuit?])
-                #:rest [inputs () (listof (listof (list/c variable/c (or/c 'true 'false #f #t))))]
+                #:rest [inputs (c)
+                               (listof (listof (list/c variable/c (or/c 'true 'false #f #t
+                                                                        (if (constructive-circuit? c)
+                                                                            '⊥
+                                                                            none/c)))))]
                 #:pre (c inputs)
                 (for/and ([i (in-list inputs)])
                   (equal? (list->set (map first i))
@@ -101,18 +109,34 @@
                     (#:constraints [c extended-boolean-expression/c]
                      #:extra-outputs [_ (listof variable/c)])
                     #:pre
-                    (p q)
+                    (p q c)
                     (and (distinct? (circuit-inputs p) (circuit-outputs q))
-                         (distinct? (circuit-inputs q) (circuit-outputs p)))
+                         (distinct? (circuit-inputs q) (circuit-outputs p))
+                         (or
+                          (equal? c the-unsupplied-arg)
+                          (subset? (FV c)
+                                   (list->set (append
+                                               (circuit-inputs p)
+                                               (circuit-outputs p)
+                                               (circuit-inputs q)
+                                               (circuit-outputs q))))))
                     any)]
   [verify-same (->i ([p circuit?]
                      [q (p) (and/c circuit? (same-circuit-as/c p))])
                     (#:constraints [c extended-boolean-expression/c]
                      #:extra-outputs [_ (listof variable/c)])
                     #:pre
-                    (p q)
+                    (p q c)
                     (and (distinct? (circuit-inputs p) (circuit-outputs q))
-                         (distinct? (circuit-inputs q) (circuit-outputs p)))
+                         (distinct? (circuit-inputs q) (circuit-outputs p))
+                         (or
+                          (equal? c the-unsupplied-arg)
+                          (subset? (FV c)
+                                   (list->set (append
+                                               (circuit-inputs p)
+                                               (circuit-outputs p)
+                                               (circuit-inputs q)
+                                               (circuit-outputs q))))))
                     [_ (or/c unsat?
                              (list/c sat?
                                      (listof (listof (list/c variable/c any/c)))

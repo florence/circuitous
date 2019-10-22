@@ -73,4 +73,25 @@
              (contains? P `(- ,(second (first x)))))
         (or (second x)
             (deref P `(- ,(second (first x)))))))
-     P)))
+     P))
+
+  (define (outputs=? a b #:outputs [outputs #f])
+  (if outputs
+      (andmap
+       (lambda (w)
+         (cond
+           [(and (list? w) (equal? (first w) '-))
+            (equal?
+             (or (not (contains? a w)) (deref a w))
+             (or (not (contains? b w)) (deref b w)))]
+           [else
+            (equal?
+             (and (contains? a w) (deref a w))
+             (and (contains? b w) (deref b w)))]))
+       outputs)
+      (andmap
+       (lambda (w)
+         (implies
+          (contains? b (first w))
+          (equal? (second w) (deref b (first w)))))
+       a))))

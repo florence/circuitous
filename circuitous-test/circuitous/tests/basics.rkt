@@ -1,11 +1,15 @@
 #lang racket
 (require rackunit
          circuitous
-         circuitous/private/redex
+         (except-in circuitous/private/redex FV)
          redex/reduction-semantics
          (only-in circuitous/private/data
                   circuit-reg-pairs)
-         syntax/macro-testing)
+         (for-syntax syntax/parse)
+         syntax/macro-testing
+         (only-in rosette/solver/solution
+                  model
+                  core))
 
 (test-case "checking"
   (check-exn
@@ -62,7 +66,17 @@
    (constructive->classical
     (circuit
      #:inputs (c) #:outputs (a)
-     (a = c)))))
+     (a = c))))
+
+  (check-exn
+   #rx"contract violation.*#:pre condition violation"
+   (lambda ()
+     (assert-same
+      #:constraints 'Unbound
+      (circuit
+       #:inputs () #:outputs ())
+      (circuit
+       #:inputs () #:outputs ())))))
 
 (test-case "verification"   
   (check-pred
@@ -239,8 +253,93 @@
                '((+ in) #f) '((- in) #t)
                '((+ out) #f) '((- out) #t)))))
 
+(test-case "register tracking"
+  (define c1
+    (circuit
+     #:inputs (a)
+     #:outputs (out)
+     (reg in out = a)))
+  (define c2
+    (circuit
+     #:inputs (a)
+     #:outputs (out)
+     (reg in out = (not a))))
+
+  (define c3
+    (circuit
+     #:inputs ()
+     #:outputs (out)
+     (out = false)))
+  (define x (verify-same c2 c3))
+  (check-pred list? x)
+  (check-equal?
+   (length (hash-keys (model (first x))))
+   4
+   (pretty-format (hash-keys (model (first x)))))
+  
+  (check-pred
+   list?
+   (verify-same c1 c2))
+  (check-pred
+   list?
+   (verify-same
+    (constructive->classical c1)
+    (constructive->classical c2)))
+  (check-pred
+   list?
+   (verify-same
+    (constructive->classical c2)
+    (constructive->classical c3))))
+(test-case "dont generate symbolics for internal register names"
+  (define c1
+    (circuit
+     #:inputs (a)
+     #:outputs (out)
+     (out = q)
+     (reg in q = a)))
+  (define c2
+    (circuit
+     #:inputs (a)
+     #:outputs (out)
+     (out = q)
+     (reg in q = (not a))))
+
+  (define c3
+    (circuit
+     #:inputs ()
+     #:outputs (out)
+     (out = false)))
+  (define x (verify-same c2 c3))
+  (check-pred list? x)
+  (check-equal?
+   (length (hash-keys (model (first x))))
+   4
+   (pretty-format (hash-keys (model (first x)))))
+  
+  (check-pred
+   list?
+   (verify-same c1 c2))
+  (check-pred
+   list?
+   (verify-same
+    (constructive->classical c1)
+    (constructive->classical c2)))
+  (check-pred
+   list?
+   (verify-same
+    (constructive->classical c2)
+    (constructive->classical c3))))
+
 
 (test-case "regression test from esterel compiler+Can+registers"
+  (define (only r . i)
+    (map
+     (lambda (x)
+       (map (lambda (i)
+              (or (assoc i x)
+                  (list i #f)))
+            i))
+     r))
   (define p
     (circuit
      #:inputs (GO SUSP RES KILL)
@@ -265,20 +364,186 @@
      (K0-internal = (and reg-out RES))
      (K0-internal1 = GO)
      (K1 = K0-internal1)
-     (S1 = K0-internal)
+     (S2 = K0-internal)
      (SEL = reg-out)
      (do-sel = (or K0-internal1 resel))
      (reg reg-in reg-out = (and (not KILL) do-sel))
      (resel = (and SUSP SEL))))
+  (check-equal?
+   (only
+    (execute p
+             '((GO true) (RES true) (SUSP false) (KILL false))
+             '((GO true) (RES true) (SUSP false) (KILL false)))
+    'S1)
+   '(((S1 #f))
+     ((S1 #t))))
+  (check-equal?
+   (only
+    (execute q
+             '((GO true) (RES true) (SUSP false) (KILL false))
+             '((GO true) (RES true) (SUSP false) (KILL false)))
+    'S1)
+   '(((S1 #f))
+     ((S1 #f))))
+  (check-not-equal?
+   (only
+    (execute p
+             '((GO true) (RES true) (SUSP false) (KILL false))
+             '((GO true) (RES true) (SUSP false) (KILL false)))
+    'K0 'K1 'S1)
+   (only
+    (execute q
+             '((GO true) (RES true) (SUSP false) (KILL false))
+             '((GO true) (RES true) (SUSP false) (KILL false)))
+    'K0 'K1 'S1))
   (check-pred
    list?
    (verify-same
-    #:extra-outputs '(K2)
     p q))
   (check-pred
    unsat?
    (verify-same
-    #:extra-outputs '(K2)
     #:constraints (term (implies SEL (not GO)))
-    p q)))
+    p q))
+  (check-pred
+   list?
+   (verify-same
+    (constructive->classical p)
+    (constructive->classical q)))
+  (check-pred
+   unsat?
+   (verify-same
+    #:constraints (term (implies (+ SEL) (- GO)))
+    (constructive->classical p)
+    (constructive->classical q))))
+
+(test-case "regression test from esterel with par and guard"
+  (define-syntax test
+    (syntax-parser
+      [(_ p q)
+       #`(begin
+           #,(syntax/loc this-syntax
+               (check-pred list? (verify-same p q)))
+           #,(syntax/loc this-syntax
+               (check-pred unsat?
+                           (verify-same
+                            #:constraints '(implies SEL (not GO))
+                            p q))))]))
+  (define p/guard-simp
+    (circuit
+     #:outputs (K0 K1 SEL)
+     #:inputs (GO)
+     (GO-safe = (and GO (not SEL)))
+     (K0 = (and lem1 (and rem1 SEL)))
+     (K1 = (and lem2 (and rem2 GO-safe)))
+     (SEL = (or psel qsel))
+     (lem = (and qsel (not psel)))
+     (lem1 = (or lem psel))
+     (lem2 = (or lem1 GO-safe))
+     (reg do-sel psel = (or GO-safe qsel))
+     (reg do-sel1 qsel = (or GO-safe psel))
+     (rem = (and psel (not qsel)))
+     (rem1 = (or rem qsel))
+     (rem2 = (or rem1 GO-safe))))
+  (define p-simp
+    (circuit
+     #:outputs (K0 K1 SEL)
+     #:inputs (GO)
+     (K0 = (and lem1 (and rem1 SEL)))
+     (K1 = (and lem2 (and rem2 GO)))
+     (SEL = (or psel qsel))
+     (lem = (and qsel (not psel)))
+     (lem1 = (or lem psel))
+     (lem2 = (or lem1 GO))
+     (reg do-sel psel = (or GO psel))
+     (reg do-sel1 qsel = (or GO qsel))
+     (rem = (and psel (not qsel)))
+     (rem1 = (or rem qsel))
+     (rem2 = (or rem1 GO))))
+  (define p/guard
+    (circuit
+     #:outputs (K0 K1 SEL)
+     #:inputs (GO KILL RES SUSP)
+     (GO-safe = (and GO (not SEL)))
+     (K0 = (and lem1 (and rem1 both)))
+     (K1 = (and lem2 (and rem2 both1)))
+     (SEL = (or psel qsel))
+     (both = (or lname rname))
+     (both1 = (or lname1 rname1))
+     (do-sel = (or GO-safe resel))
+     (do-sel1 = (or GO-safe resel1))
+     (killout = KILL)
+     (lem = (and SEL (and RES (not psel))))
+     (lem1 = (or lem lname))
+     (lem2 = (or lem1 lname1))
+     (lname = (and reg-out RES))
+     (lname1 = GO-safe)
+     (psel = reg-out)
+     (qsel = reg-out1)
+     (reg reg-in reg-out = (and (not killout) do-sel))
+     (reg reg-in1 reg-out1 = (and (not killout) do-sel1))
+     (rem = (and SEL (and RES (not qsel))))
+     (rem1 = (or rem rname))
+     (rem2 = (or rem1 rname1))
+     (resel = (and SUSP psel))
+     (resel1 = (and SUSP qsel))
+     (rname = (and reg-out1 RES))
+     (rname1 = GO-safe)))
+  (define p
+    (circuit
+     #:outputs (K0 K1 SEL)
+     #:inputs (GO KILL RES SUSP)
+     (K0 = (and lem1 (and rem1 both)))
+     (K1 = (and lem2 (and rem2 both1)))
+     (SEL = (or psel qsel))
+     (both = (or lname rname))
+     (both1 = (or lname1 rname1))
+     (do-sel = (or GO resel))
+     (do-sel1 = (or GO resel1))
+     (killout = KILL)
+     (lem = (and SEL (and RES (not psel))))
+     (lem1 = (or lem lname))
+     (lem2 = (or lem1 lname1))
+     (lname = (and reg-out RES))
+     (lname1 = GO)
+     (psel = reg-out)
+     (qsel = reg-out1)
+     (reg reg-in reg-out = (and (not killout) do-sel))
+     (reg reg-in1 reg-out1 = (and (not killout) do-sel1))
+     (rem = (and SEL (and RES (not qsel))))
+     (rem1 = (or rem rname))
+     (rem2 = (or rem1 rname1))
+     (resel = (and SUSP psel))
+     (resel1 = (and SUSP qsel))
+     (rname = (and reg-out1 RES))
+     (rname1 = GO)))
+
+  (check-equal?
+   (map (lambda (x)
+          (list (assoc 'K0 x)
+                (assoc 'K1 x)))
+        (execute
+         p/guard-simp
+         '([GO true])
+         '([GO true])))
+   '(((K0 #f)
+      (K1 #t))
+     ((K0 #t)
+      (K1 #f))))
+  (check-equal?
+   (map (lambda (x)
+          (list (assoc 'K0 x)
+                (assoc 'K1 x)))
+        (execute
+         p-simp
+         '([GO true])
+         '([GO true])))
+   '(((K0 #f)
+      (K1 #t))
+     ((K0 #t)
+      (K1 #t))))
+  (test p/guard-simp p-simp)
+  (test p-simp p/guard-simp)
+  (test p/guard p)
+  (test p p/guard))
   

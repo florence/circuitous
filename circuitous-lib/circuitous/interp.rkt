@@ -34,7 +34,9 @@
       (for/list ([i (in-list (sort input variable<? #:key first))])
         (list (first i)
               (if (symbol? (second i))
-                  (eq? (second i) 'true)
+                  (cond [(eq? (second i) 'true) #t]
+                        [(eq? (second i) 'false) #f]
+                        [(eq? (second i) '⊥) '⊥])
                   (second i))))))
   (define evaluate
     (cond [(constructive-circuit? P)
@@ -62,15 +64,17 @@
           [else
            (log-circuit-solver-debug "solving as a classical circuit")
            pos-neg:verify-same]))
-  (define p1::p2
+  (define p1::regpairs1::p2::regpairs2
     (rename-internals
      (circuit-term P1)
      (circuit-term P2)
+     #:c1-regs (circuit-reg-pairs P1)
+     #:c2-regs (circuit-reg-pairs P2)
      #:c1-interface (append extra-outputs (circuit-inputs P1) (circuit-outputs P1))
      #:c2-interface (append extra-outputs (circuit-inputs P2)  (circuit-outputs P2))))
-  (solve (first p1::p2) (second p1::p2)
-         #:register-pairs1 register-pairs1
-         #:register-pairs2 register-pairs2
+  (solve (first p1::regpairs1::p2::regpairs2) (third p1::regpairs1::p2::regpairs2)
+         #:register-pairs1 (second p1::regpairs1::p2::regpairs2)
+         #:register-pairs2 (fourth p1::regpairs1::p2::regpairs2)
          #:constraints constraints
          #:outputs outputs))
 

@@ -7,11 +7,15 @@
  variable/c
  boolean-expression/c
  extended-boolean-expression/c
- distinct?)
+ distinct?
+ FV)
 (require "redex.rkt" "data.rkt"
          redex/reduction-semantics
          racket/contract
-         racket/set)
+         racket/set
+         racket/match)
+
+(module+ test (require rackunit))
 
 (define (equations? P)
   (redex-match? constructive P P))
@@ -54,3 +58,43 @@
 
 (define (distinct? a b)
   (equal? (set) (set-intersect (list->set a) (list->set b))))
+
+(define (FV x)
+  (match x
+    [(or 'true 'false #t #f '⊥) (set)]
+    [(list (or 'and 'or 'implies) a b)
+     (set-union (FV a) (FV b))]
+    [(list 'not a)
+     (FV a)]
+    [(or (? symbol? a)
+         (and a (list (or '+ '-) _)))
+     (set a)]))
+
+(module+ test
+  (check-equal?
+   (FV '(implies (+ SEL) (- GO)))
+   (set '(+ SEL) '(- GO)))
+  (check-equal?
+   (FV '(and (+ SEL) (- GO)))
+   (set '(+ SEL) '(- GO)))
+  (check-equal?
+   (FV '(or (+ SEL) (- GO)))
+   (set '(+ SEL) '(- GO)))
+  (check-equal?
+   (FV '(implies true (- GO)))
+   (set '(- GO)))
+  (check-equal?
+   (FV '(implies false (- GO)))
+   (set '(- GO)))
+  (check-equal?
+   (FV '(implies #f (- GO)))
+   (set '(- GO)))
+  (check-equal?
+   (FV '(implies #t (- GO)))
+   (set '(- GO)))
+  (check-equal?
+   (FV '(implies ⊥ (- GO)))
+   (set '(- GO)))
+  (check-equal?
+   (FV '(not (- GO)))
+   (set '(- GO))))
