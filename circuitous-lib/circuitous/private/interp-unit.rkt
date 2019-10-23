@@ -30,15 +30,13 @@
       (if (zero? bound)
           state
           (let ([x (step state formulas)])
-            (if (equal? x state)
-                state
-                (eval* x formulas (sub1 bound))))))
-    (eval* state formulas (length formulas)))
+            (eval* x formulas (sub1 bound)))))
+    (eval* state formulas (interp-bound formulas)))
 
   (define (step state formulas)
     (map 
      (lambda (w)
-       (match-define (list name v) w)
+       (define name (first w))
        (define f
          (and (contains? formulas name)
               (deref formulas name)))

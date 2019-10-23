@@ -12,6 +12,24 @@
 (define-unit pos-neg@
   (import)
   (export sem^)
+  (define (interp-bound formula)
+    (define y (plus-and-minus formula))
+    ;; for anything that has a +/- part
+    ;; only one can change so we don't need to
+    ;; double count in the execution bound
+    (+ (inexact->exact (ceiling (/ y 2)))
+       (- (length formula) y)))
+  
+  (define (plus-and-minus y)
+    (cond [(empty? y) 0]
+          [(list? (first (first y)))
+           (define name (first (first y)))
+           (define other (if (eq? (first name) '+) '- '+))
+           (if (assoc (list other (second name)) y)
+               (add1 (plus-and-minus (rest y)))
+               (plus-and-minus (rest y)))]
+          [else (plus-and-minus (rest y))]))
+  
   (define (get-maximal-statespace x)
     (expt 2 (inexact->exact (ceiling (/ x 2)))))
   (define (initialize-to-false i)

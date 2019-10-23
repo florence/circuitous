@@ -11,3 +11,4 @@ constructive?
 initialize-to-false
 get-maximal-statespace
 outputs=?
+interp-bound

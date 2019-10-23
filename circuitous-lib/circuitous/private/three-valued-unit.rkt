@@ -10,6 +10,8 @@
 (define-unit three-valued@
   (import)
   (export sem^)
+  (define (interp-bound formula)
+    (length formula))
   (define initial-value '⊥)
   (define (get-maximal-statespace x)
     (expt 2 x))
