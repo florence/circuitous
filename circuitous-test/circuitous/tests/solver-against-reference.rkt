@@ -608,6 +608,24 @@
                   (circuit #:inputs (a ...)
                            #:outputs (b ...)
                            body2 ...)))))))]))
+
+(test-case "ensure execution gives enough rounds to fully solve"
+  ;;; first ensure that the ordering is what it should be
+  (check-equal?
+   (sort '(|1| |2| |3| |4| |5| |6| |7| |8|) variable<?)
+   '(|1| |2| |3| |4| |5| |6| |7| |8|))
+  (check-exn-against
+   check-not-exn
+   #:inputs (|8|)
+   #:outputs (|1|)
+   ((|1| = |2|)
+    (|2| = |3|)
+    (|3| = |4|)
+    (|4| = |5|)
+    (|5| = |6|)
+    (|6| = |7|)
+    (|7| = |8|))
+   ((|1| = |8|))))
           
 
 (check-exn-against

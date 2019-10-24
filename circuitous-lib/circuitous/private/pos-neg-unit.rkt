@@ -17,8 +17,7 @@
     ;; for anything that has a +/- part
     ;; only one can change so we don't need to
     ;; double count in the execution bound
-    (+ (inexact->exact (ceiling (/ y 2)))
-       (- (length formula) y)))
+    (+ y (- (length formula) (* 2 y))))
   
   (define (plus-and-minus y)
     (cond [(empty? y) 0]
