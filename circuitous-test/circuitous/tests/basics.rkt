@@ -47,9 +47,9 @@
    classical (a b)
    (let ([a<b (variable<? (term a) (term b))]
          [b<a (variable<? (term b) (term a))])
-   (if (equal? (term a) (term b))
-       (equal? a<b b<a)
-       (equal? a<b (not b<a))))))
+     (if (equal? (term a) (term b))
+         (equal? a<b b<a)
+         (equal? a<b (not b<a))))))
 (test-case "contracts"
   (check-pred
    constructive-circuit?
@@ -78,7 +78,131 @@
       (circuit
        #:inputs () #:outputs ())))))
 
-(test-case "verification"   
+(test-case "constructive"
+  (check-pred
+   list?
+   (verify-totally-constructive
+    (circuit
+     #:inputs ()
+     #:outputs ()
+     (a = a))))
+  (check-pred
+   list?
+   (verify-totally-constructive
+    (circuit
+     #:inputs (A)
+     #:outputs ()
+     (O = (or A O)))))
+  (check-pred
+   unsat?
+   (verify-totally-constructive
+    (circuit
+     #:inputs (A)
+     #:outputs ()
+     (O = (or A (or (not A) O))))))
+  (check-pred
+   unsat?
+   (verify-totally-constructive
+    (circuit
+     #:inputs ()
+     #:outputs ())))
+  (check-pred
+   unsat?
+   (verify-totally-constructive
+    (constructive->classical
+     (circuit
+      #:inputs ()
+      #:outputs ()))))
+  (check-pred
+   unsat?
+   (verify-totally-constructive
+    (circuit
+     #:inputs (I)
+     #:outputs ()
+     (O = (and I (not I))))))
+  (check-pred
+   unsat?
+   (verify-totally-constructive
+    (constructive->classical
+     (circuit
+      #:inputs (I)
+      #:outputs ()
+      (O = (and I (not I)))))))
+  (check-pred
+   unsat?
+   (verify-totally-constructive
+    #:constraints '(or I (not I))
+    (circuit
+     #:inputs (I)
+     #:outputs ()
+     (O = (and I (not I))))))
+  (check-pred
+   unsat?
+   (verify-totally-constructive
+    #:constraints '(or (+ I) (- I))
+    (constructive->classical 
+     (circuit
+      #:inputs (I)
+      #:outputs ()
+      (O = (and I (not I)))))))
+
+  
+  (check-pred
+   unsat?
+   (verify-totally-constructive
+    (circuit
+     #:inputs (I)
+     #:outputs (O)
+     (O = (and I (not I))))))
+  (check-pred
+   unsat?
+   (verify-totally-constructive
+    (constructive->classical
+     (circuit
+      #:inputs (I)
+      #:outputs (O)
+      (O = (and I (not I)))))))
+  (check-pred
+   unsat?
+   (verify-totally-constructive
+    #:constraints '(or I (not I))
+    (circuit
+     #:inputs (I)
+     #:outputs (O)
+     (O = (and I (not I))))))
+  (check-pred
+   unsat?
+   (verify-totally-constructive
+    #:constraints '(or (+ I) (- I))
+    (constructive->classical 
+     (circuit
+      #:inputs (I)
+      #:outputs (O)
+      (O = (and I (not I))))))))
+
+(test-case "verification"
+  (check-pred
+   list?
+   (verify-same
+    (circuit
+     #:inputs (I)
+     #:outputs ()
+     (O = (and I (not I))))
+    (circuit
+     #:inputs ()
+     #:outputs ())))
+  (check-pred
+   list?
+   (verify-same
+    (constructive->classical 
+     (circuit
+      #:inputs (I)
+      #:outputs ()
+      (O = (and I (not I)))))
+    (constructive->classical
+     (circuit
+      #:inputs ()
+      #:outputs ()))))
   (check-pred
    list?
    (verify-same
@@ -136,7 +260,7 @@
      #:inputs () #:outputs ()
      (a = true))))
   (check-pred
-   unsat?
+   list?
    (verify-same
     (circuit
      #:inputs (i) #:outputs (o)
@@ -144,7 +268,43 @@
     (circuit
      #:inputs () #:outputs (o)
      (i = false)
-     (o = i)))))
+     (o = i))))
+  (check-pred
+   list?
+   (verify-same
+    (constructive->classical
+     (circuit
+      #:inputs (i) #:outputs (o)
+      (o = (and false i))))
+    (constructive->classical
+     (circuit
+      #:inputs () #:outputs (o)
+      (i = false)
+      (o = i)))))
+  (check-pred
+   unsat?
+   (verify-same
+    #:constraints `(or i (not i))
+    (circuit
+     #:inputs (i) #:outputs (o)
+     (o = (and false i)))
+    (circuit
+     #:inputs () #:outputs (o)
+     (i = false)
+     (o = i))))
+  (check-pred
+   unsat?
+   (verify-same
+    #:constraints `(or (+ i) (- i))
+    (constructive->classical
+     (circuit
+      #:inputs (i) #:outputs (o)
+      (o = (and false i))))
+    (constructive->classical
+     (circuit
+      #:inputs () #:outputs (o)
+      (i = false)
+      (o = i))))))
             
 (test-case "construction"
   (check-equal?
@@ -241,9 +401,9 @@
     '(((+ b) #f) ((- b) #t))
     '(((+ b) #f) ((- b) #t)))
    (list (list  '((+ b) #t) '((- b) #f)
-               '((+ a) #t) '((- a) #f)
-               '((+ in) #t) '((- in) #f)
-               '((+ out) #f) '((- out) #t))
+                '((+ a) #t) '((- a) #f)
+                '((+ in) #t) '((- in) #f)
+                '((+ out) #f) '((- out) #t))
          (list '((+ b) #f) '((- b) #t)
                '((+ a) #f) '((- a) #t)
                '((+ in) #f) '((- in) #t)

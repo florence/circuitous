@@ -10,7 +10,7 @@
          (only-in racket/base error))
 
 (define-unit pos-neg@
-  (import)
+  (import interp^)
   (export sem^)
   (define (interp-bound formula)
     (define y (plus-and-minus formula))
@@ -18,6 +18,32 @@
     ;; only one can change so we don't need to
     ;; double count in the execution bound
     (+ y (- (length formula) (* 2 y))))
+
+  (define (constructive-constraints inputs)
+    (let fold ([current inputs])
+      (if
+       (empty? current)
+       'true
+       (let ([n (first (first current))])
+         (if (list? n)
+             (cond
+               [(and (eq? '+ (first n))
+                     (assoc (list '- (second n)) inputs))
+                `(and
+                  (or ,n (- ,(second n)))
+                  ,(fold (rest current)))]
+               [(and (eq? '- (first n))
+                     (assoc (list '+ (second n)) inputs))
+                (fold (rest current))]
+               ;; if we have a p/m input with no corresponding
+               ;; partner, we are conservative and assume that
+               ;; partner must be false. Therefore, the other
+               ;; this one must be true to be constructive.
+               [else `(and ,n ,(fold (rest current)))])
+             (fold (rest current)))))))
+  
+  (define (constructive? P)
+    ((build-expression (constructive-constraints P)) P))
   
   (define (plus-and-minus y)
     (cond [(empty? y) 0]
@@ -51,15 +77,15 @@
   (define (and/force a b)
     (if (and (boolean? a) (boolean? b))
         (and a b)
-        (error "not boolean")))
+        (error 'and "not boolean in (and ~a ~a)" a b)))
   (define (or/force a b)
     (if (and (boolean? a) (boolean? b))
         (or a b)
-        (error "not boolean")))
+        (error 'or "not boolean in (or ~a ~a)" a b)))
   (define (not/force a)
     (if (boolean? a)
         (not a)
-        (error "not boolean")))
+        (error 'not "not boolean in (not ~a)" a)))
   (define (f-implies a b)
     (lambda (w)
       (implies (a w) (b w))))
@@ -80,17 +106,6 @@
         (not (and (second x)
                   (deref I `(- ,(second (first x))))))))
      I))
-  (define (constructive? P)
-    (andmap
-     (lambda (x)
-       (implies 
-        (and (list? x)
-             (list? (first x))
-             (eq? (first (first x)) '+)
-             (contains? P `(- ,(second (first x)))))
-        (or (second x)
-            (deref P `(- ,(second (first x)))))))
-     P))
 
   (define (outputs=? a b #:outputs [outputs #f])
   (if outputs

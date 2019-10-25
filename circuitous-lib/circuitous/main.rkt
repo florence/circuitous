@@ -117,9 +117,7 @@
                           (subset? (FV c)
                                    (list->set (append
                                                (circuit-inputs p)
-                                               (circuit-outputs p)
-                                               (circuit-inputs q)
-                                               (circuit-outputs q))))))
+                                               (circuit-outputs p))))))
                     any)]
   [verify-same (->i ([p circuit?]
                      [q (p) (and/c circuit? (same-circuit-as/c p))])
@@ -134,10 +132,31 @@
                           (subset? (FV c)
                                    (list->set (append
                                                (circuit-inputs p)
-                                               (circuit-outputs p)
-                                               (circuit-inputs q)
-                                               (circuit-outputs q))))))
+                                               (circuit-outputs p))))))
                     [_ (or/c unsat?
                              (list/c sat?
                                      (listof (listof (list/c variable/c any/c)))
-                                     (listof (listof (list/c variable/c any/c)))))])]))
+                                     (listof (listof (list/c variable/c any/c)))))])]
+  [verify-totally-constructive
+   (->i ([p circuit?])
+        (#:constraints [c extended-boolean-expression/c])
+        #:pre (p c)
+        (or
+         (equal? c the-unsupplied-arg)
+         (subset? (FV c)
+                  (list->set (append
+                              (circuit-inputs p)
+                              (circuit-outputs p)))))
+        [_ (or/c unsat? (list/c sat? (listof (listof (list/c variable/c any/c)))))])]
+  [assert-totally-constructive
+   (->i ([p circuit?])
+        (#:constraints [c extended-boolean-expression/c])
+        #:pre (p c)
+        (or
+         (equal? c the-unsupplied-arg)
+         (subset? (FV c)
+                  (list->set (append
+                              (circuit-inputs p)
+                              (circuit-outputs p)))))
+        [_ void?])]))
+        

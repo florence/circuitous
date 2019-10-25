@@ -1,6 +1,7 @@
 #lang racket/base
 
-(provide unsat? verify-same assert-same execute)
+(provide unsat? verify-same assert-same execute verify-totally-constructive
+         assert-totally-constructive)
 
 (require
   "private/sem-sig.rkt"
@@ -49,6 +50,27 @@
    inputs
    (circuit-term P)
    (circuit-reg-pairs P)))
+
+(define (verify-totally-constructive p #:constraints [constraints `true])
+  (define f
+    (if (constructive-circuit? p)
+        three-valued:totally-constructive?
+        pos-neg:totally-constructive?))
+  (f
+   (circuit-term p)
+   #:constraints constraints
+   #:register-pairs (circuit-reg-pairs p)))
+
+(define (assert-totally-constructive
+         p
+         #:constraints [constraints `true])
+  (define v (verify-totally-constructive p #:constraints constraints))
+  (unless (unsat? v)
+    (error 'totally-constructive?
+           "rosette model gave counterexample:\n~a\n~a"
+           (first v)
+           (second v))))
+  
 
 (define (verify-same P1 P2
                      #:constraints [constraints `true]

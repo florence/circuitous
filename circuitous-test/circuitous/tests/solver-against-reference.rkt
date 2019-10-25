@@ -688,6 +688,12 @@
      #:outputs ()
      ((a = b)
       (b = a))
+     ())
+    (check-exn-against
+     check-exn #rx"assert-same.*model"
+     #:inputs (I)
+     #:outputs (O)
+     ((O = (and I (not I))))
      ()))
   (test-case "a cycle is never constructive"
     (check-exn-against

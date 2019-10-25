@@ -5,10 +5,11 @@
          "shared.rkt"
          racket/unit
          racket/match
-         (only-in racket/format ~a))
+         (only-in racket/format ~a)
+         (only-in racket/base error))
 
 (define-unit three-valued@
-  (import)
+  (import interp^)
   (export sem^)
   (define (interp-bound formula)
     (length formula))
@@ -27,7 +28,10 @@
         [(⊥)
          (case b
            [(#t) #t]
-           [else '⊥])])))
+           [(#f ⊥) '⊥]
+           [else (error 'or "second argument is not an extended boolean: ~a" b)])]
+        [else
+         (error 'or "first argument is not an extended boolean: ~a" a)])))
 
   (define (f-and x y)
     (lambda (w)
@@ -39,14 +43,18 @@
         [(⊥)
          (case b
            [(#f) #f]
-           [else '⊥])])))
+           [(#t ⊥) '⊥]
+           [else (error 'and "second argument is not an extended boolean: ~a" b)])]
+        [else
+         (error 'and "first argument is not an extended boolean: ~a" a)])))
 
   (define (f-not a)
     (lambda (w)
       (case (a w)
         [(#t) #f]
         [(#f) #t]
-        [(⊥) '⊥])))
+        [(⊥) '⊥]
+        [else (error 'not "argument is not an extended boolean: ~a" (a w))])))
   ;; TODO: is this the right extention of constructive implies
   ;; to scott domains?
   (define (f-implies a b)
@@ -65,11 +73,15 @@
   (define (constraints _)
     #t)
   (define (constructive? a)
-    (andmap
-     (lambda (w)
-       (match-define (list n a) w)
-       (or (equal? a #t) (equal? a #f)))
-     a))
+    (equal?
+     ((build-expression (constructive-constraints a)) a)
+     #t))
+  
+  (define (constructive-constraints inputs)
+    (if (empty? inputs)
+        'true
+        `(and (or ,(first (first inputs)) (not ,(first (first inputs))))
+              ,(constructive-constraints (rest inputs)))))
 
   (define (outputs=? a b #:outputs [outputs #f])
   (if outputs

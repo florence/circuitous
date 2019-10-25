@@ -134,17 +134,23 @@
        (max (get-maximal-statespace (length register-pairs1))
             (get-maximal-statespace (length register-pairs2))))
      (log-circuit-solver-debug "maximal-statespace: ~a" maximal-statespace)
-     (define inputs
+     (define inputs1+2
        (let loop ([x maximal-statespace])
-         (if (zero? x)
-             (list)
-             (cons (symbolic-inputs (append P1 P2) #:exclude (append register-outs1 register-outs2))
-                   (loop (sub1 x))))))
-     (log-circuit-solver-debug "inputs: ~a" (pretty-format inputs))
+         (cond [(zero? x) (list (list) (list))]
+               [else
+                (define inputs1+2
+                  (symbolic-inputs P1 P2 #:exclude (append register-outs1 register-outs2)))
+                (define r1+2 (loop (sub1 x)))
+                (list (cons (first inputs1+2) (first r1+2))
+                      (cons (second inputs1+2) (second r1+2)))])))
+     (define inputs1 (first inputs1+2))
+     (define inputs2 (second inputs1+2))
+     (log-circuit-solver-debug "inputs1: ~a" (pretty-format inputs1))
+     (log-circuit-solver-debug "inputs2: ~a" (pretty-format inputs2))
      (define e1
-       (symbolic-repr-of-eval/multi inputs P1 register-pairs1))
+       (symbolic-repr-of-eval/multi inputs1 P1 register-pairs1))
      (define e2
-       (symbolic-repr-of-eval/multi inputs P2 register-pairs2))
+       (symbolic-repr-of-eval/multi inputs2 P2 register-pairs2))
      (define (make-extra e)
        (andmap
         (lambda (v) (equal? #t ((build-expression extra-constraints) v)))
@@ -153,12 +159,24 @@
        (andmap
         (lambda (v) (equal? #t (constraints v)))
         e))
-     (define extra
-       (and (make-extra e1)
-            (make-extra e2)))
+     (define extra (make-extra e1))
      (define const
        (and (make-c e1)
             (make-c e2)))))
+  (define (totally-constructive? p
+                                 #:register-pairs [rp (list)]
+                                 #:constraints [c 'true])
+    (define r 
+      (verify-same/multi p (list)
+                         #:register-pairs1 rp
+                         #:register-pairs2 (list)
+                         #:outputs (list)
+                         #:constraints `(and ,(constructive-constraints (map (lambda (x) (list x 'true))
+                                                                             (FV p)))
+                                             ,c)))
+    (if (unsat? r)
+        r
+        (take r 2)))
   (define (verify-same/single P1 P2
                               #:constraints [extra-constraints 'true]
                               #:outputs [outputs #f])
@@ -169,18 +187,19 @@
      #:given-constraints const
      #:gened-constraints extra
      #:outputs outputs
-     (define inputs (symbolic-inputs (append P1 P2)))
-     (log-circuit-solver-debug "inputs: ~a" (pretty-format inputs))
+     (define inputs1+2 (symbolic-inputs P1 P2))
+     (define inputs1 (first inputs1+2))
+     (define inputs2 (second inputs1+2))
+     (log-circuit-solver-debug "inputs1: ~a" (pretty-format inputs1))
+     (log-circuit-solver-debug "inputs2: ~a" (pretty-format inputs2))
      (log-circuit-solver-debug "extras: ~a" (pretty-format extra-constraints))
-     (define e1 (symbolic-repr-of-eval P1 inputs))
-     (define e2 (symbolic-repr-of-eval P2 inputs))
+     (define e1 (symbolic-repr-of-eval P1 inputs1))
+     (define e2 (symbolic-repr-of-eval P2 inputs2))
      (define (make-extra e)
        (equal? #t ((build-expression extra-constraints) e)))
      (define (make-c e)
        (equal? #t (constraints e)))
-     (define extra
-       (and (make-extra e1)
-            (make-extra e2)))
+     (define extra (equal? #t ((build-expression extra-constraints) e1)))
      (define const
        (and (make-c e1)
             (make-c e1)))))
@@ -272,12 +291,23 @@
        (lambda (w) (deref w x))]))
 
   
-  (define (symbolic-inputs P #:exclude [exclude (list)])
-    (map
-     (lambda (x) (list x (symbolic-boolean x)))
-     (filter (lambda (x)
-               (not (member x exclude)))
-               (FV P)))))
+  (define (symbolic-inputs P1 P2 #:exclude [exclude (list)])
+    (define (keep? x)
+      (not (member x exclude)))
+    (define FV1 (filter keep? (FV P1)))
+    (define FV2 (filter keep? (FV P2)))
+    (define shared
+      (remove* (remove* FV1 FV2) FV2))
+    (define (new-row x)
+      (list x (symbolic-boolean x)))
+    (define shared-symbolics
+      (map new-row shared))
+    (define (maybe-new-row x)
+      (or (assoc x shared-symbolics)
+          (new-row x)))
+    (list
+     (map maybe-new-row FV1)
+     (map maybe-new-row FV2))))
 
 (define (FV P)
   (remove-duplicates

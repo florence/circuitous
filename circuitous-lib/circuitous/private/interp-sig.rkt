@@ -9,3 +9,4 @@ eval/multi*
 verify-same
 result=?
 result=?/multi
+totally-constructive?

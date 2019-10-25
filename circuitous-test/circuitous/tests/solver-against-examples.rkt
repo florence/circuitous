@@ -11,6 +11,7 @@
   rackunit
   rackunit/text-ui
   racket/match
+  (only-in racket/base error)
   (only-in redex/reduction-semantics
            term)
   (for-syntax syntax/parse
@@ -67,14 +68,19 @@
                    #,(replace-context this-syntax #'convert^))
            (export test-suite^)
            (define (#,(replace-context this-syntax #'convert*) x)
-             (map (lambda (x) (list (first x) (third x)))
+             (map (lambda (x) (list (first x)
+                                    (case (third x)
+                                      [(false #f) #f]
+                                      [(true #t) #t]
+                                      [(⊥) '⊥]
+                                      [else (third x)])))
                   (#,(replace-context this-syntax #'convert) x)))
            (define (#,(replace-context this-syntax #'build-state*) x)
              (map
               (lambda (x)
                 (match x
-                  [(list n 'true) (list n #t)]
-                  [(list n 'false) (list n #f)]
+                  [(list n (or 'true #t)) (list n #t)]
+                  [(list n (or 'false #f)) (list n #f)]
                   [(list n '⊥) (list n '⊥)]))
               x))
            (define (suite)
@@ -138,10 +144,10 @@
   (check-false
    (outputs=?
     (eval (build-state (convert `((O = (not L)) (L = I)))
-                       (convert* `((I = true))))
+                       (convert* `((I = false))))
           (build-formula (convert `((O = (not L)) (L = I)))))
     (eval (build-state (convert `((O = I)))
-                       (convert* `((I = true))))        
+                       (convert* `((I = false))))
           (build-formula (convert `((O = I)))))))
   (check-false
    (result=?
@@ -159,7 +165,14 @@
           (build-formula (convert `((O = (not L)) (L = I)))))
     (eval (build-state (convert `((O = I)))
                        (convert* `((I = ⊥))))
-          (build-formula (convert `((O = I))))))))
+          (build-formula (convert `((O = I)))))))
+  (check-true
+   (result=?
+    (eval (build-state (convert `((O = (or I (not I)))))
+                       (convert* `((I = ⊥))))
+          (build-formula (convert `((O = (or I (not I)))))))
+    (eval (build-state (convert `((O = ⊥))) `())
+          (build-formula (convert `((O = ⊥))))))))
 
 (define-circuit-test-suite constraints
   (check-pred
@@ -169,10 +182,133 @@
     (convert `((O = (not L)) (L = I)))
     (convert` ((O = I))))))
 
+(define-circuit-test-suite constructive?
+  (check-true
+   (constructive? `()))
+  (check-true
+   (constructive? (convert* `((O = true)))))
+  (check-true
+   (constructive? (convert* `((O = false)))))
+  (check-false
+   (constructive? (convert* `((O = ⊥)))))
+  (check-pred
+   list?
+   (verify-same
+    #:outputs (list)
+    (convert `((O = (and I (not I)))))
+    (convert `())))
+  (check-pred
+   unsat?
+   (verify-same
+    #:outputs (list)
+    #:constraints (constructive-constraints (convert `((I = true))))
+    (convert `((O = (and I (not I)))))
+    (convert `())))
+  (check-pred
+   list?
+   (verify-same
+    #:outputs (list)
+    (convert `((O = (or I (not I)))))
+    (convert `((O = true)))))
+  (check-pred
+   unsat?
+   (verify-same
+    #:outputs (list)
+    #:constraints (constructive-constraints (convert `((I = true))))
+    (convert `((O = (or I (not I)))))
+    (convert `((O = true)))))
+  (check-pred
+   list?
+   (verify-same
+    (convert `((O = (and I (not I)))))
+    (convert `())))
+  (check-pred
+   unsat?
+   (verify-same
+    #:constraints (constructive-constraints (convert `((I = true))))
+    (convert `((O = (and I (not I)))))
+    (convert `())))
+  (check-pred
+   list?
+   (verify-same
+    (convert `((O = (or I (not I)))))
+    (convert `((O = true)))))
+  (check-pred
+   unsat?
+   (verify-same
+    #:constraints (constructive-constraints (convert `((I = true))))
+    (convert `((O = (or I (not I)))))
+    (convert `((O = true)))))
+
+  (check-pred
+   list?
+   (verify-same
+    #:register-pairs1 (list)
+    #:register-pairs2 (list)
+    #:outputs (list)
+    (convert `((O = (and I (not I)))))
+    (convert `())))
+  (check-pred
+   unsat?
+   (verify-same
+    #:register-pairs1 (list)
+    #:register-pairs2 (list)
+    #:outputs (list)
+    #:constraints (constructive-constraints (convert `((I = true))))
+    (convert `((O = (and I (not I)))))
+    (convert `())))
+  (check-pred
+   list?
+   (verify-same
+    #:register-pairs1 (list)
+    #:register-pairs2 (list)
+    #:outputs (list)
+    (convert `((O = (or I (not I)))))
+    (convert `((O = true)))))
+  (check-pred
+   unsat?
+   (verify-same
+    #:register-pairs1 (list)
+    #:register-pairs2 (list)
+    #:outputs (list)
+    #:constraints (constructive-constraints (convert `((I = true))))
+    (convert `((O = (or I (not I)))))
+    (convert `((O = true)))))
+  (check-pred
+   list?
+   (verify-same
+    #:register-pairs1 (list)
+    #:register-pairs2 (list)
+    (convert `((O = (and I (not I)))))
+    (convert `())))
+  (check-pred
+   unsat?
+   (verify-same
+    #:register-pairs1 (list)
+    #:register-pairs2 (list)
+    #:constraints (constructive-constraints (convert `((I = true))))
+    (convert `((O = (and I (not I)))))
+    (convert `())))
+  (check-pred
+   list?
+   (verify-same
+    #:register-pairs1 (list)
+    #:register-pairs2 (list)
+    (convert `((O = (or I (not I)))))
+    (convert `((O = true)))))
+  (check-pred
+   unsat?
+   (verify-same
+    #:register-pairs1 (list)
+    #:register-pairs2 (list)
+    #:constraints (constructive-constraints (convert `((I = true))))
+    (convert `((O = (or I (not I)))))
+    (convert `((O = true))))))
+
 (define-circuit-test-suite verification
   (with-asserts-only
    (let ()
-     (define symbolic (symbolic-inputs (convert `((O = L) (L = I)))))
+     (define symbolic (first (symbolic-inputs (convert `((O = L) (L = I))) (list))))
      (define s (build-state (convert `((O = L) (L = I))) symbolic))
      (define f (build-formula (convert `((O = L) (L = I)))))
      (check-pred
@@ -188,13 +324,19 @@
      (check-pred
       unsat?
       (verify
+       #:assume (assert (I¬=⊥ s))
+       #:guarantee
+       (assert (constructive? (eval s f)))))
+     (check-pred
+      unsat?
+      (verify
        #:assume (assert (not (I¬=⊥ s)))
        #:guarantee
-       (assert (not (constructive? (eval s f))))))))
+       (assert (equal? #t (not (constructive? (eval s f)))))))))
   (with-asserts-only
    (let ()
      (define s (build-state (convert `((O = I)))
-                            (symbolic-inputs (convert `((O = I))))))
+                            (first (symbolic-inputs (convert `((O = I))) (list)))))
      (define f (build-formula (convert `((O = I)))))
      (check-pred
       unsat?
@@ -406,6 +548,14 @@
     (convert `((pre-in = I) (O = pre-out))))))
 
 (define-circuit-test-suite regression-tests
+    (test-case "make sure non overlapping outputs result in false positives"
+    (check-pred
+     list?
+     (verify-same
+      #:outputs (convert-names `(O))
+      #:constraints (convert-term `O)
+      (convert `((O = true)))
+      (convert `()))))
   (test-case "case found when debugging abort"
     (define q
       (convert `((SEL = q_SEL)
@@ -413,21 +563,10 @@
                  (Kn = q_Kn))))
     (define start
       (convert
-       `(;; p
-         (p_GO = (and GO S))
+       `((p_GO = (and GO S))
          (p_RES = RES)
-         ;; these wires are not needed for the proof, and are never read so we can 
-         ;; ignore them
-         ;(p_SUSP = SUSP)
-         ;(p_KILL = KILL)
-         ;; q
          (q_GO = (and GO (not S)))
          (q_RES = RES)
-         ;; these wires are not needed for the proof, and are never read so we can 
-         ;; ignore them
-         ;(q_SUSP = SUSP)
-         ;(q_KILL = KILL)
-         ;; out
          (SEL = (or p_SEL q_SEL))
          (K0 = (or p_K0 q_K0))
          (Kn = (or p_Kn q_Kn)))))
@@ -441,10 +580,9 @@
          '(and (implies SEL (not GO))
                (implies (not SEL) (not S))))
         start
-        q)))
-    (test-case "positive version"
+        q))
       (check-pred
-       unsat?
+       list?
        (verify-same
         #:outputs (convert-names '(SEL Kn K0))
         #:constraints
@@ -453,8 +591,24 @@
                (and (implies (not SEL) (not S))
                     (and (implies (not (or p_GO (and p_SEL p_RES)))
                                   (and (not p_Kn) (not p_K0)))
-                         (implies (not (or p_GO (and p_SEL p_RES)))
-                                  (and (not p_Kn) (not p_K0)))))))
+                         (implies (not (or q_GO (and q_SEL q_RES)))
+                                  (and (not q_Kn) (not q_K0)))))))
+        start
+        q)))
+    (test-case "positive version"
+      (check-pred
+       list?
+       (verify-same
+        #:outputs (convert-names '(SEL Kn K0))
+        #:constraints
+        (convert-term
+         '(and (not p_SEL)
+               (and (implies SEL (not GO))
+                    (and (implies (not SEL) (not S))
+                         (and (implies (not (or p_GO (and p_SEL p_RES)))
+                                       (and (not p_Kn) (not p_K0)))
+                              (implies (not (or q_GO (and q_SEL q_RES)))
+                                       (and (not q_Kn) (not q_K0))))))))
         start
         q)))))
      
