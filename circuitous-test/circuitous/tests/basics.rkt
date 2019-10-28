@@ -215,7 +215,7 @@
    (verify-same
     (circuit
      #:inputs (I)
-     #:outputs ()
+     #:outputs (O)
      (O = (and I (not I))))
     (circuit
      #:inputs ()
@@ -226,12 +226,37 @@
     (constructive->classical 
      (circuit
       #:inputs (I)
+      #:outputs (O)
+      (O = (and I (not I)))))
+    (constructive->classical
+     (circuit
+      #:inputs ()
+      #:outputs ()))))
+
+  (check-pred
+   unsat?
+   (verify-same
+    (circuit
+     #:inputs (I)
+     #:outputs ()
+     (O = (and I (not I))))
+    (circuit
+     #:inputs ()
+     #:outputs ())))
+  (check-pred
+   unsat?
+   (verify-same
+    (constructive->classical 
+     (circuit
+      #:inputs (I)
       #:outputs ()
       (O = (and I (not I)))))
     (constructive->classical
      (circuit
       #:inputs ()
       #:outputs ()))))
+
+  
   (check-pred
    list?
    (verify-same
@@ -293,6 +318,16 @@
    (verify-same
     (circuit
      #:inputs (i) #:outputs (o)
+     (o = i))
+    (circuit
+     #:inputs () #:outputs (o)
+     (i = false)
+     (o = i))))
+  (check-pred
+   unsat?
+   (verify-same
+    (circuit
+     #:inputs (i) #:outputs (o)
      (o = (and false i)))
     (circuit
      #:inputs () #:outputs (o)
@@ -300,6 +335,18 @@
      (o = i))))
   (check-pred
    list?
+   (verify-same
+    (constructive->classical
+     (circuit
+      #:inputs (i) #:outputs (o)
+      (o = i)))
+    (constructive->classical
+     (circuit
+      #:inputs () #:outputs (o)
+      (i = false)
+      (o = i)))))
+  (check-pred
+   unsat?
    (verify-same
     (constructive->classical
      (circuit

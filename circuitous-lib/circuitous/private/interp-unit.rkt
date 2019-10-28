@@ -90,7 +90,7 @@
                   [b b])
        (if (empty? a)
            #t
-           (and (result=? (first a) (first b) #:outputs (or outputs #f))
+           (and (result=? (first a) (first b) #:outputs outputs)
                 (andmap (rest a) (rest b)))))))
 
   (define (verify-same P1 P2
@@ -123,6 +123,9 @@
      #:=? result=?/multi
      #:expr1 e1
      #:expr2 e2
+     #:inputs1 inputs1
+     #:inputs2 inputs2
+     #:add-others (lambda (a b) (build-extra a (list) b (list)))
      #:given-constraints const
      #:gened-constraints extra
      #:outputs outputs
@@ -186,7 +189,9 @@
                          #:register-pairs2 (list)
                          #:outputs (list)
                          #:constraints
-                         `(and ,(constructive-constraints p) ,c)))
+                         `(and ,(constructive-constraints
+                                 (initialize-to-false (FV p)))
+                               ,c)))
     (if (unsat? r)
         r
         (take r 2)))
@@ -197,6 +202,9 @@
      #:=? result=?
      #:expr1 e1
      #:expr2 e2
+     #:inputs1 inputs1
+     #:inputs2 inputs2
+     #:add-others append
      #:given-constraints const
      #:gened-constraints extra
      #:outputs outputs
@@ -226,15 +234,18 @@
       [(_ #:=? =?:id
           #:expr1 e1:id
           #:expr2 e2:id
+          #:inputs1 i1:id
+          #:inputs2 i2:id
+          #:add-others add-others:expr
           #:given-constraints given-constraints:id
           #:gened-constraints gened-constraints:id
           #:outputs outputs:id
           body:expr ...)
        #'(with-asserts*
           body ...
-          (verify/f =? e1 e2 given-constraints gened-constraints outputs))]))
+          (verify/f =? e1 e2 i1 i2 add-others given-constraints gened-constraints outputs))]))
   
-  (define (verify/f =? e1 e2 given-constraints gened-constraints outputs)
+  (define (verify/f =? e1 e2 i1 i2 add-others given-constraints gened-constraints outputs)
     (log-circuit-solver-debug "e1: ~a" (pretty-format e1))
     (log-circuit-solver-debug "e1 vars: ~a" (pretty-format (symbolics e1)))
     (log-circuit-solver-debug "e2: ~a" (pretty-format e2))
@@ -242,8 +253,9 @@
     (log-circuit-solver-debug "constraints: ~a" (pretty-format (equal? #t given-constraints)))
     (log-circuit-solver-debug "generated constraints: ~a" (pretty-format (equal? #t gened-constraints)))
     (log-circuit-solver-debug "asserts: ~a" (pretty-format (asserts)))
+    (log-circuit-solver-debug "outputs: ~a" (pretty-format outputs))
 
-    (define eq (equal? #t (=? e1 e2 #:outputs outputs)))
+    (define eq (equal? #t (=? (add-others e1 i2) (add-others e2 i1) #:outputs outputs)))
     
     (log-circuit-solver-debug "eq: ~a" (pretty-format eq))
     (log-circuit-solver-debug "eq symbolics: ~a" (pretty-format (symbolics eq)))

@@ -58,6 +58,25 @@
     ;; we only need `+, as `+ being true demands `- be false
     (term (convert-p + ,x))))
 
+(define-syntax log-debug-solve
+  (syntax-parser
+    [(_ e)
+     #'(with-logging-to-port
+        (current-error-port)
+        #:logger (current-logger)
+        (lambda () e)
+        'debug
+        'circuit-solver)]))
+
+(define-syntax log-debug-eval
+  (syntax-parser
+    [(_ e)
+     #'(with-logging-to-port
+        (current-error-port)
+        #:logger (current-logger)
+        (lambda () e)
+        'debug
+        'circuit-eval)]))
 
   
 (define-syntax define-circuit-test-suite
@@ -197,6 +216,36 @@
    list?
    (verify-same
     #:outputs (list)
+    (convert `((a = a)))
+    (convert `())))
+  (check-pred
+   list?
+   (verify-same
+    #:outputs (list)
+    #:register-pairs1 (list)
+    #:register-pairs2 (list)
+    (convert `((a = a)))
+    (convert `())))
+  (check-pred
+   list?
+   (verify-same
+    #:outputs (list)
+    #:constraints (constructive-constraints '())
+    (convert `((a = a)))
+    (convert `())))
+  (check-pred
+   list?
+   (verify-same
+    #:outputs (list)
+    #:register-pairs1 (list)
+    #:register-pairs2 (list)
+    #:constraints (constructive-constraints '())
+    (convert `((a = a)))
+    (convert `())))
+  (check-pred
+   unsat?
+   (verify-same
+    #:outputs (list)
     (convert `((O = (and I (not I)))))
     (convert `())))
   (check-pred
@@ -207,7 +256,7 @@
     (convert `((O = (and I (not I)))))
     (convert `())))
   (check-pred
-   list?
+   unsat?
    (verify-same
     #:outputs (list)
     (convert `((O = (or I (not I)))))
@@ -220,7 +269,7 @@
     (convert `((O = (or I (not I)))))
     (convert `((O = true)))))
   (check-pred
-   list?
+   unsat?
    (verify-same
     (convert `((O = (and I (not I)))))
     (convert `())))
@@ -243,7 +292,7 @@
     (convert `((O = true)))))
 
   (check-pred
-   list?
+   unsat?
    (verify-same
     #:register-pairs1 (list)
     #:register-pairs2 (list)
@@ -260,7 +309,7 @@
     (convert `((O = (and I (not I)))))
     (convert `())))
   (check-pred
-   list?
+   unsat?
    (verify-same
     #:register-pairs1 (list)
     #:register-pairs2 (list)
@@ -277,7 +326,7 @@
     (convert `((O = (or I (not I)))))
     (convert `((O = true)))))
   (check-pred
-   list?
+   unsat?
    (verify-same
     #:register-pairs1 (list)
     #:register-pairs2 (list)
