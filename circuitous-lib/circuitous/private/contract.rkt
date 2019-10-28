@@ -36,25 +36,27 @@
          (list/c '+ symbol?)
          (list/c '- symbol?))))
 
-(define (make-boolean-expression/c x)
+(define (make-boolean-expression/c x name)
   (define y
     (flat-named-contract
-     "boolean-expression/c"
+     name
      (recursive-contract
       (or/c variable/c
             (x y)
             #f #t
-            (list/c 'and boolean-expression/c boolean-expression/c)
-            (list/c 'or boolean-expression/c boolean-expression/c)
-            (list/c 'not boolean-expression/c))
+            (list/c 'and y y)
+            (list/c 'or y y)
+            (list/c 'not y))
       #:flat)))
   y)
 
-(define boolean-expression/c (make-boolean-expression/c (lambda (_) none/c)))
+(define boolean-expression/c
+  (make-boolean-expression/c (lambda (_) none/c) "boolean-expression/c"))
 (define extended-boolean-expression/c
   (make-boolean-expression/c
    (lambda (x)
-     (list/c 'implies x x))))
+     (list/c 'implies x x))
+   "extended-boolean-expression/c"))
 
 (define (distinct? a b)
   (equal? (set) (set-intersect (list->set a) (list->set b))))

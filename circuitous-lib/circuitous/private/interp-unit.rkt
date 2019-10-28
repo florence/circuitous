@@ -98,6 +98,10 @@
                        #:register-pairs2 [register-pairs2 #f]
                        #:constraints [extra-constraints 'true]
                        #:outputs [outputs #f])
+    (log-circuit-solver-debug
+     "P1: ~a" (pretty-format P1))
+    (log-circuit-solver-debug
+     "P2: ~a" (pretty-format P2))
     (cond
       [(and register-pairs1 register-pairs2)
        (verify-same/multi P1 P2
@@ -159,7 +163,17 @@
        (andmap
         (lambda (v) (equal? #t (constraints v)))
         e))
-     (define extra (make-extra e1))
+     (define (build-extra ea eb in o)
+       (let loop
+         ([ea ea]
+          [in in])
+         (if (empty? ea)
+             (list)
+             (cons (append (first ea) (first in) (initialize-to-false (or o (map first (first eb)))))
+                   (loop (rest ea) (rest in))))))
+     (define extra
+       (and (make-extra (build-extra e1 e2 inputs2 outputs))
+            (make-extra (build-extra e2 e1 inputs1 outputs))))
      (define const
        (and (make-c e1)
             (make-c e2)))))
@@ -171,9 +185,8 @@
                          #:register-pairs1 rp
                          #:register-pairs2 (list)
                          #:outputs (list)
-                         #:constraints `(and ,(constructive-constraints (map (lambda (x) (list x 'true))
-                                                                             (FV p)))
-                                             ,c)))
+                         #:constraints
+                         `(and ,(constructive-constraints p) ,c)))
     (if (unsat? r)
         r
         (take r 2)))
@@ -199,7 +212,11 @@
        (equal? #t ((build-expression extra-constraints) e)))
      (define (make-c e)
        (equal? #t (constraints e)))
-     (define extra (equal? #t ((build-expression extra-constraints) e1)))
+     (define (build-extra ea eb in o)
+       (append ea in (initialize-to-false (or o (map first eb)))))
+     (define extra
+       (and (make-extra (build-extra e1 e2 inputs2 outputs))
+            (make-extra (build-extra e2 e1 inputs1 outputs))))
      (define const
        (and (make-c e1)
             (make-c e1)))))

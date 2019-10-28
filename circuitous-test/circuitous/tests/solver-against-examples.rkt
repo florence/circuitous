@@ -6,12 +6,14 @@
   circuitous/private/three-valued-unit
   circuitous/private/pos-neg-unit
   circuitous/private/shared
+  circuitous/private/data
+  racket/logging
   (only-in circuitous/private/redex convert-P convert-p)
   racket/unit
   rackunit
   rackunit/text-ui
   racket/match
-  (only-in racket/base error)
+  (only-in racket/base error current-logger)
   (only-in redex/reduction-semantics
            term)
   (for-syntax syntax/parse
@@ -548,28 +550,40 @@
     (convert `((pre-in = I) (O = pre-out))))))
 
 (define-circuit-test-suite regression-tests
-    (test-case "make sure non overlapping outputs result in false positives"
+  (test-case "make sure non overlapping outputs result in correct solving"
     (check-pred
-     list?
+     unsat?
      (verify-same
       #:outputs (convert-names `(O))
       #:constraints (convert-term `O)
       (convert `((O = true)))
+      (convert `())))
+    (check-pred
+     list?
+     (verify-same
+      #:outputs (convert-names `(O))
+      (convert `((O = true)))
       (convert `()))))
   (test-case "case found when debugging abort"
     (define q
-      (convert `((SEL = q_SEL)
-                 (K0 = q_K0)
-                 (Kn = q_Kn))))
+      (sort
+       (convert `((SEL = q_SEL)
+                  (K0 = q_K0)
+                  (Kn = q_Kn)))
+       variable<?
+       #:key first))
     (define start
-      (convert
-       `((p_GO = (and GO S))
-         (p_RES = RES)
-         (q_GO = (and GO (not S)))
-         (q_RES = RES)
-         (SEL = (or p_SEL q_SEL))
-         (K0 = (or p_K0 q_K0))
-         (Kn = (or p_Kn q_Kn)))))
+      (sort
+       (convert
+        `((p_GO = (and GO S))
+          (p_RES = RES)
+          (q_GO = (and GO (not S)))
+          (q_RES = RES)
+          (SEL = (or p_SEL q_SEL))
+          (K0 = (or p_K0 q_K0))
+          (Kn = (or p_Kn q_Kn))))
+       variable<?
+       #:key first))
     (test-case "negative version"
       (check-pred
        list?
@@ -581,6 +595,35 @@
                (implies (not SEL) (not S))))
         start
         q))
+      (define inputs
+        (sort
+         (convert*
+          `((p_SEL = true)
+            (q_SEL = false)
+            (GO = false)
+            (S = false)
+            (RES = false)
+            (p_K0 = false)
+            (q_K0 = false)
+            (p_Kn = false)
+            (q_Kn = false)))
+         variable<?
+         #:key first))
+      (check-not-equal?
+       (map
+        (lambda (n)
+          (assoc
+           n
+           (eval (build-state start inputs)
+                 (build-formula start))))
+        (convert-names '(SEL)))
+       (map
+        (lambda (n)
+          (assoc
+           n
+           (eval (build-state q inputs)
+                 (build-formula q))))
+        (convert-names '(SEL))))
       (check-pred
        list?
        (verify-same
@@ -589,15 +632,31 @@
         (convert-term
          '(and (implies SEL (not GO))
                (and (implies (not SEL) (not S))
-                    (and (implies (not (or p_GO (and p_SEL p_RES)))
+                    (and (implies (not (or (and GO S) (and p_SEL RES)))
                                   (and (not p_Kn) (not p_K0)))
-                         (implies (not (or q_GO (and q_SEL q_RES)))
+                         (implies (not (or (and GO (not S)) (and q_SEL RES)))
+                                  (and (not q_Kn) (not q_K0)))))))
+        start
+        q))
+      (check-pred
+       list?
+       (verify-same
+        #:outputs (convert-names '(SEL Kn K0))
+        #:register-pairs1 (list)
+        #:register-pairs2 (list)
+        #:constraints
+        (convert-term
+         '(and (implies SEL (not GO))
+               (and (implies (not SEL) (not S))
+                    (and (implies (not (or (and GO S) (and p_SEL RES)))
+                                  (and (not p_Kn) (not p_K0)))
+                         (implies (not (or (and GO (not S)) (and q_SEL RES)))
                                   (and (not q_Kn) (not q_K0)))))))
         start
         q)))
     (test-case "positive version"
       (check-pred
-       list?
+       unsat?
        (verify-same
         #:outputs (convert-names '(SEL Kn K0))
         #:constraints
@@ -605,9 +664,26 @@
          '(and (not p_SEL)
                (and (implies SEL (not GO))
                     (and (implies (not SEL) (not S))
-                         (and (implies (not (or p_GO (and p_SEL p_RES)))
+                         (and (implies (not (or (and GO S) (and p_SEL RES)))
                                        (and (not p_Kn) (not p_K0)))
-                              (implies (not (or q_GO (and q_SEL q_RES)))
+                              (implies (not (or (and GO (not S)) (and q_SEL RES)))
+                                       (and (not q_Kn) (not q_K0))))))))
+        start
+        q))
+      (check-pred
+       unsat?
+       (verify-same
+        #:outputs (convert-names '(SEL Kn K0))
+        #:register-pairs1 (list)
+        #:register-pairs2 (list)
+        #:constraints
+        (convert-term
+         '(and (not p_SEL)
+               (and (implies SEL (not GO))
+                    (and (implies (not SEL) (not S))
+                         (and (implies (not (or (and GO S) (and p_SEL RES)))
+                                       (and (not p_Kn) (not p_K0)))
+                              (implies (not (or (and GO (not S)) (and q_SEL RES)))
                                        (and (not q_Kn) (not q_K0))))))))
         start
         q)))))

@@ -7,6 +7,7 @@
                   circuit-reg-pairs)
          (for-syntax syntax/parse)
          syntax/macro-testing
+         racket/logging
          (only-in rosette/solver/solution
                   model
                   core))
@@ -86,6 +87,14 @@
      #:inputs ()
      #:outputs ()
      (a = a))))
+  (check-pred
+   list?
+   (verify-totally-constructive
+    (constructive->classical
+     (circuit
+      #:inputs ()
+      #:outputs ()
+      (a = a)))))
   (check-pred
    list?
    (verify-totally-constructive
@@ -179,6 +188,26 @@
       #:inputs (I)
       #:outputs (O)
       (O = (and I (not I))))))))
+
+(test-case "verification symmetry under constraints"
+  (define-check (check-sym a b c)
+    (define p (verify-same #:constraints a b c))
+    (define q (verify-same #:constraints a c b))
+    (unless
+        (or (and (unsat? p) (unsat? q))
+            (and (list? p) (list? q)))
+      (fail-check)))
+  (check-sym
+   `O
+   (circuit
+    #:inputs (I)
+    #:outputs (O)
+    (O = I))
+   (circuit
+    #:inputs (I)
+    #:outputs (O)
+    (X = I)
+    (O = true))))
 
 (test-case "verification"
   (check-pred
@@ -576,6 +605,34 @@
     #:constraints (term (implies (+ SEL) (- GO)))
     (constructive->classical p)
     (constructive->classical q))))
+
+(test-case "regression test from debugging of abort"
+  (check-pred
+   list?
+   (verify-same
+    #:constraints
+    '(and (implies SEL (not GO))
+          (and (implies (not SEL) (not S))
+               (and (implies (not (or (and GO S) (and p_SEL RES)))
+                             (and (not p_Kn) (not p_K0)))
+                    (implies (not (or (and GO (not S)) (and q_SEL RES)))
+                             (and (not q_Kn) (not q_K0))))))
+    (circuit
+     #:inputs (GO S RES p_SEL q_SEL p_K0 q_K0 p_Kn q_Kn)
+     #:outputs (SEL Kn K0)
+     (p_GO = (and GO S))
+     (p_RES = RES)
+     (q_GO = (and GO (not S)))
+     (q_RES = RES)
+     (SEL = (or p_SEL q_SEL))
+     (K0 = (or p_K0 q_K0))
+     (Kn = (or p_Kn q_Kn)))
+    (circuit
+     #:inputs (q_SEL q_K0 q_Kn)
+     #:outputs (SEL Kn K0)
+     (SEL = q_SEL)
+     (K0 = q_K0)
+     (Kn = q_Kn)))))
 
 (test-case "regression test from esterel with par and guard"
   (define-syntax test
