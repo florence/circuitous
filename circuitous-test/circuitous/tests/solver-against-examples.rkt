@@ -359,7 +359,7 @@
 (define-circuit-test-suite verification
   (with-asserts-only
    (let ()
-     (define symbolic (first (symbolic-inputs (convert `((O = L) (L = I))) (list))))
+     (define symbolic (symbolic-inputs (convert `((O = L) (L = I)))))
      (define s (build-state (convert `((O = L) (L = I))) symbolic))
      (define f (build-formula (convert `((O = L) (L = I)))))
      (check-pred
@@ -386,8 +386,9 @@
        (assert (equal? #t (not (constructive? (eval s f)))))))))
   (with-asserts-only
    (let ()
-     (define s (build-state (convert `((O = I)))
-                            (first (symbolic-inputs (convert `((O = I))) (list)))))
+     (define s
+       (build-state (convert `((O = I)))
+                    (symbolic-inputs (convert `((O = I))))))
      (define f (build-formula (convert `((O = I)))))
      (check-pred
       unsat?

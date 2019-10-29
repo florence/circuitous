@@ -680,6 +680,18 @@
      (SEL = q_SEL)
      (K0 = q_K0)
      (Kn = q_Kn)))))
+(test-case "regression test for multiple instants where inputs are not shared"
+  (check-pred
+   unsat?
+   (verify-same
+    (circuit
+     #:inputs (I1 I2)
+     #:outputs (O I)
+     (reg O I = (or I1 (and false I2))))
+    (circuit
+     #:inputs (I1)
+     #:outputs (O I)
+     (reg O I = I1)))))
 
 (test-case "regression test from esterel with par and guard"
   (define-syntax test
@@ -810,4 +822,3 @@
   (test p-simp p/guard-simp)
   (test p/guard p)
   (test p p/guard))
-  
