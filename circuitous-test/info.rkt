@@ -8,7 +8,10 @@
     "circuitous-lib"))
 
 
-(define build-deps '())
+(define build-deps '("rackunit-lib"
+                     "redex-lib"
+                     "threading-lib"
+                     ))
 
 (define pkg-desc "Tests for `circuitous`")
 

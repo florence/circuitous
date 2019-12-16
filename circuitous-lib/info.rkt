@@ -3,11 +3,13 @@
 (define collection 'multi)
 
 (define deps
-  '(("base" #:version "7.4")
+  '("redex-lib"
+    ("base" #:version "7.4")
     "rosette"))
 
 
-(define build-deps '())
+(define build-deps '("rackunit-lib"
+                     ))
 
 (define pkg-desc "Implementation part of `circuitous`")
 
