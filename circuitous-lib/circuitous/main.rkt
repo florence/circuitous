@@ -64,7 +64,7 @@
          #:outputs (listof symbol?)
          (listof (list/c symbol? '= boolean-expression/c)))
         (#:register-pairs (listof (list/c symbol? symbol?)))
-        circuit?)]
+        constructive-circuit?)]
   [link
    (->i ([a circuit?]
          #:with [b (a)
