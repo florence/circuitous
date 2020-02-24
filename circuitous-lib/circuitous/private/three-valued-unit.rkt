@@ -88,16 +88,16 @@
               ,(constructive-constraints (rest inputs)))))
 
   (define (outputs=? a b #:outputs [outputs #f])
-  (if outputs
-      (andmap
-       (lambda (w)
-         (equal?
-          (and (contains? a w) (deref a w))
-          (and (contains? b w) (deref b w))))
-       outputs)
-      (andmap
-       (lambda (w)
-         (implies
-          (contains? b (first w))
-          (equal? (second w) (deref b (first w)))))
-       a))))
+    (if outputs
+        (andmap
+         (lambda (w)
+           (equal?
+            (and (contains? a w) (deref a w))
+            (and (contains? b w) (deref b w))))
+         outputs)
+        (andmap
+         (lambda (w)
+           (implies
+            (contains? b (first w))
+            (equal? (second w) (deref b (first w)))))
+         a))))

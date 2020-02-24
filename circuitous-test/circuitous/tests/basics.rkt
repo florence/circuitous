@@ -652,6 +652,7 @@
     #:constraints (term (implies (+ SEL) (- GO)))
     (constructive->classical p)
     (constructive->classical q))))
+   
 
 (test-case "regression test from debugging of abort"
   (check-pred

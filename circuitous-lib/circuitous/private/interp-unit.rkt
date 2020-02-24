@@ -121,12 +121,10 @@
                              #:outputs [outputs #f])
     (do-verify
      #:=? result=?/multi
-     #:expr1 e1
-     #:expr2 e2
-     #:given-constraints const
-     #:gened-constraints extra
-     #:outputs outputs
-     
+     #:expr1 e1 #:expr2 e2
+     #:given-constraints extra
+     #:gened-constraints const
+     #:outputs outputs 
      (log-circuit-solver-debug "starting multi run for\n~a\nand\n~a"
                                (pretty-format P1)
                                (pretty-format P2))
@@ -143,34 +141,27 @@
          (cond [(zero? x) (list)]
                [else
                 (cons
-                 (symbolic-inputs (append P1 P2) #:exclude (append register-outs1 register-outs2))
+                 (symbolic-inputs (append P1 P2)
+                                  #:exclude (append register-outs1 register-outs2))
                  (loop (sub1 x)))])))
      (log-circuit-solver-debug "inputs: ~a" (pretty-format inputs))
-     (define e1
-       (symbolic-repr-of-eval/multi inputs P1 register-pairs1))
-     (define e2
-       (symbolic-repr-of-eval/multi inputs P2 register-pairs2))
+     (define e1 (eval/multi* inputs P1 register-pairs1))
+     (define e2 (eval/multi* inputs P2 register-pairs2))
      (define (make-extra e)
-       (andmap
-        (lambda (v) (equal? #t ((build-expression extra-constraints) v)))
-        e))
+       (andmap (lambda (v) (equal? #t ((build-expression extra-constraints) v))) e))
      (define (make-c e)
-       (andmap
-        (lambda (v) (equal? #t (constraints v)))
-        e))
+       (andmap (lambda (v) (equal? #t (constraints v))) e))
      (define (build-extra ea eb)
-       (map
-        (lambda (x)
-          (append x
-                  (initialize-to-false
-                   (map first (first eb)))))
-        ea))
+       (map (lambda (x)
+              (append x
+                      (initialize-to-false
+                       (map first (first eb)))))
+            ea))
      (define extra
        (and (make-extra (build-extra e1 e2))
             (make-extra (build-extra e2 e1))))
-     (define const
-       (and (make-c e1)
-            (make-c e2)))))
+     (define const (and (make-c e1) (make-c e2)))))
+  
   (define (totally-constructive? p
                                  #:register-pairs [rp (list)]
                                  #:constraints [c 'true])
@@ -193,8 +184,8 @@
      #:=? result=?
      #:expr1 e1
      #:expr2 e2
-     #:given-constraints const
-     #:gened-constraints extra
+     #:given-constraints extra
+     #:gened-constraints const
      #:outputs outputs
      (define inputs (symbolic-inputs (append P1 P2)))
      (log-circuit-solver-debug "inputs: ~a" (pretty-format inputs))
@@ -232,8 +223,10 @@
     (log-circuit-solver-debug "e1 vars: ~a" (pretty-format (symbolics e1)))
     (log-circuit-solver-debug "e2: ~a" (pretty-format e2))
     (log-circuit-solver-debug "e2 vars: ~a" (pretty-format (symbolics e2)))
-    (log-circuit-solver-debug "constraints: ~a" (pretty-format (equal? #t given-constraints)))
-    (log-circuit-solver-debug "generated constraints: ~a" (pretty-format (equal? #t gened-constraints)))
+    (log-circuit-solver-debug "constraints: ~a"
+                              (pretty-format (equal? #t given-constraints)))
+    (log-circuit-solver-debug "generated constraints: ~a"
+                              (pretty-format (equal? #t gened-constraints)))
     (log-circuit-solver-debug "asserts: ~a" (pretty-format (asserts)))
     (log-circuit-solver-debug "outputs: ~a" (pretty-format outputs))
 
@@ -243,9 +236,6 @@
     (log-circuit-solver-debug "eq symbolics: ~a" (pretty-format (symbolics eq)))
     (define r
       (verify
-       ;; note: this assumes that
-       ;; the constraints require strict truth
-       ;; not not-falseness
        #:assume (assert (and (equal? #t given-constraints)
                              (equal? #t gened-constraints)))
        #:guarantee (assert eq)))
@@ -261,10 +251,6 @@
         (let ([r (complete-solution r (symbolics eq))])
           (list r (evaluate e1 r) (evaluate e2 r)))))
   
-  (define (symbolic-repr-of-eval/multi inputs P register-pairs)
-    (eval/multi* inputs
-                P
-                register-pairs))
   (define (symbolic-repr-of-eval P inputs)
     (eval (build-state P inputs)
           (build-formula P)))

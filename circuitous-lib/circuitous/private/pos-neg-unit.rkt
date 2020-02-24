@@ -13,11 +13,7 @@
   (import interp^)
   (export sem^)
   (define (interp-bound formula)
-    (define y (plus-and-minus formula))
-    ;; for anything that has a +/- part
-    ;; only one can change so we don't need to
-    ;; double count in the execution bound
-    (+ y (- (length formula) (* 2 y))))
+    (/ (length formula) 2))
 
   (define (constructive-constraints inputs)
     (let fold ([current inputs])
@@ -27,33 +23,15 @@
        (let ([n (first (first current))])
          (if (list? n)
              (cond
-               [(and (eq? '+ (first n))
-                     (assoc (list '- (second n)) inputs))
+               [(eq? '+ (first n))
                 `(and
                   (or ,n (- ,(second n)))
                   ,(fold (rest current)))]
-               [(and (eq? '- (first n))
-                     (assoc (list '+ (second n)) inputs))
-                (fold (rest current))]
-               ;; if we have a p/m input with no corresponding
-               ;; partner, we are conservative and assume that
-               ;; partner must be false. Therefore, the other
-               ;; this one must be true to be constructive.
-               [else `(and ,n ,(fold (rest current)))])
+               [else (fold (rest current))])
              (fold (rest current)))))))
   
   (define (constructive? P)
     ((build-expression (constructive-constraints P)) P))
-  
-  (define (plus-and-minus y)
-    (cond [(empty? y) 0]
-          [(list? (first (first y)))
-           (define name (first (first y)))
-           (define other (if (eq? (first name) '+) '- '+))
-           (if (assoc (list other (second name)) y)
-               (add1 (plus-and-minus (rest y)))
-               (plus-and-minus (rest y)))]
-          [else (plus-and-minus (rest y))]))
   
   (define (get-maximal-statespace x)
     (expt 2 (inexact->exact (ceiling (/ x 2)))))
@@ -112,22 +90,22 @@
      I))
 
   (define (outputs=? a b #:outputs [outputs #f])
-  (if outputs
-      (andmap
-       (lambda (w)
-         (cond
-           [(and (list? w) (equal? (first w) '-))
-            (equal?
-             (or (not (contains? a w)) (deref a w))
-             (or (not (contains? b w)) (deref b w)))]
-           [else
-            (equal?
-             (and (contains? a w) (deref a w))
-             (and (contains? b w) (deref b w)))]))
-       outputs)
-      (andmap
-       (lambda (w)
-         (implies
-          (contains? b (first w))
-          (equal? (second w) (deref b (first w)))))
-       a))))
+    (if outputs
+        (andmap
+         (lambda (w)
+           (cond
+             [(and (list? w) (equal? (first w) '-))
+              (equal?
+               (or (not (contains? a w)) (deref a w))
+               (or (not (contains? b w)) (deref b w)))]
+             [else
+              (equal?
+               (and (contains? a w) (deref a w))
+               (and (contains? b w) (deref b w)))]))
+         outputs)
+        (andmap
+         (lambda (w)
+           (implies
+            (contains? b (first w))
+            (equal? (second w) (deref b (first w)))))
+         a))))
