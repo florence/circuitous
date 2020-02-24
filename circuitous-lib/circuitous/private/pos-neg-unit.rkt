@@ -21,14 +21,12 @@
        (empty? current)
        'true
        (let ([n (first (first current))])
-         (if (list? n)
-             (cond
-               [(eq? '+ (first n))
-                `(and
-                  (or ,n (- ,(second n)))
-                  ,(fold (rest current)))]
-               [else (fold (rest current))])
-             (fold (rest current)))))))
+         (cond
+           [(eq? '+ (first n))
+            `(and
+              (or ,n (- ,(second n)))
+              ,(fold (rest current)))]
+           [else (fold (rest current))])))))
   
   (define (constructive? P)
     ((build-expression (constructive-constraints P)) P))
